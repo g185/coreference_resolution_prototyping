@@ -14,11 +14,7 @@ from pytorch_lightning.loggers import WandbLogger
 from rich.console import Console
 
 from data.pl_data_modules import BasePLDataModule
-<<<<<<< HEAD:src/train.py
 from src.models.pl_modules import BasePLModule
-=======
-from models.pl_modules import BasePLModule
->>>>>>> ad95e0f8c154fae7b5977055ce475514db35b1e0:src/bin/train.py
 
 
 def train(conf: omegaconf.DictConfig) -> None:

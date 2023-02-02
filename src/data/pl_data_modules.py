@@ -8,8 +8,6 @@ from omegaconf import DictConfig
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS
 from torch.utils.data import DataLoader, Dataset
 
-from src.data.labels import Labels
-
 
 class BasePLDataModule(pl.LightningDataModule):
 
@@ -18,7 +16,6 @@ class BasePLDataModule(pl.LightningDataModule):
         datasets: DictConfig,
         batch_sizes: DictConfig,
         num_workers: DictConfig,
-        labels: Labels = None,
         *args,
         **kwargs,
     ):
@@ -30,11 +27,6 @@ class BasePLDataModule(pl.LightningDataModule):
         self.train_dataset: Optional[Dataset] = None
         self.val_datasets: Optional[Sequence[Dataset]] = None
         self.test_datasets: Optional[Sequence[Dataset]] = None
-        # label file
-        self.labels: Labels = labels
-
-
-
 
 
     def setup(self, stage: Optional[str] = None):
@@ -89,16 +81,6 @@ class BasePLDataModule(pl.LightningDataModule):
             for dataset in self.test_datasets
         ]
 
-
-<<<<<<< HEAD
-
-
-=======
-    def transfer_batch_to_device(
-        self, batch: Any, device: torch.device, dataloader_idx: int
-    ) -> Any:
-        super().transfer_batch_to_device(batch, device, dataloader_idx)
->>>>>>> ad95e0f8c154fae7b5977055ce475514db35b1e0
 
     def __repr__(self) -> str:
         return (

@@ -52,17 +52,8 @@ class CorefModel(torch.nn.Module):
         )
 
     def forward(
-<<<<<<< HEAD
             self,
             batch: torch.Tensor,
-=======
-        self,
-        labels: Optional[torch.Tensor] = None,
-        compute_loss: bool = False,
-        compute_predictions: bool = False,
-        *args,
-        **kwargs,
->>>>>>> ad95e0f8c154fae7b5977055ce475514db35b1e0
     ) -> Dict[str, torch.Tensor]:
         return self.forward_as_BCE_classification(batch)
 
@@ -72,11 +63,6 @@ class CorefModel(torch.nn.Module):
 
         representations = self.representation(last_hidden_state) # B X S X RH
 
-<<<<<<< HEAD
-=======
-        logits = None
-        output = {"logits": logits}
->>>>>>> ad95e0f8c154fae7b5977055ce475514db35b1e0
 
         coref_logits = representations @ representations.permute([0, 2, 1])
 
@@ -118,17 +104,7 @@ class CorefModel(torch.nn.Module):
         return output
 
 
-    def forward_as_BCE_classification_with_classification_head(self, batch):
-        last_hidden_state = self.model(input_ids=batch["input_ids"],
-                                       attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x H
-        representations = self.representation(last_hidden_state)
-        predictions = representations @ representations.permute([0, 2, 1])
-        pred = torch.sigmoid(predictions.squeeze(0).flatten())
-        gold = batch["gold_edges"].squeeze(0).flatten()
-        loss = loss_function(pred, gold)
-        output = {"pred": pred,
-                  "loss": loss}
-        return output
+        
     def forward_as_fra(self, batch):
         last_hidden_state = self.model(input_ids=batch["input_ids"],
                                        attention_mask=batch["attention_mask"])["last_hidden_state"] # B x S x H

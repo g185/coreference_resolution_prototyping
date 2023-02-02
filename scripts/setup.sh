@@ -30,8 +30,8 @@ else
 fi
 
 # install python requirements
-<<<<<<< HEAD
 pip install -r requirements.txt
+
 cd data/prepare_ontonotes
 chmod 755 setup.sh
 conda create -y --name py27 python=2.7
@@ -78,6 +78,3 @@ compile_language english
 conda activate coref
 python minimize.py
 
-=======
-pip install --upgrade -r requirements.txt
->>>>>>> ad95e0f8c154fae7b5977055ce475514db35b1e0
