@@ -1,0 +1,37 @@
+datamodule:
+  _target_: data.pl_data_modules.BasePLDataModule
+  datasets:
+    train:
+      - _target_: data.datasets.OntonotesDataset
+        name: 'train'
+        path:
+          - 'data/prepare_ontonotes/train.english.jsonlines'
+        max_doc_len: 4096
+        processed_dataset_path: 'data/cache/train'
+    val:
+      - _target_: data.datasets.OntonotesDataset
+        name: 'val'
+        path:
+          - 'data/prepare_ontonotes/dev.english.jsonlines'
+        max_doc_len: 4096
+        processed_dataset_path: 'data/cache/val'
+    test:
+      - _target_: data.datasets.OntonotesDataset
+        name: 'test'
+        path:
+          - 'data/prepare_ontonotes/test.english.jsonlines'
+        max_doc_len: 4096
+        processed_dataset_path: 'data/cache/test'
+
+
+
+  batch_sizes:
+    train: 9
+    val: 9
+    test: 9
+
+  num_workers:
+    train: 4
+    val: 4
+    test: 4
+

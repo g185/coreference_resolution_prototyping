@@ -1,0 +1,17 @@
+<<<<<<< HEAD
+pytorch-lightning
+hydra-core
+hydra_colorlog
+wandb
+rich
+pandas
+transformers
+datasets
+=======
+pytorch-lightning>=1.9,<2.0
+hydra-core>=1.3,<1.4
+hydra_colorlog
+wandb
+rich
+transformers>=4.26,<4.27
+>>>>>>> ad95e0f8c154fae7b5977055ce475514db35b1e0

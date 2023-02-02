@@ -1,0 +1,24 @@
+module:
+  _target_: models.pl_modules.BasePLModule
+  optimizer:
+    _target_: torch.optim.RAdam
+    lr: 1e-5
+    weight_decay: 0
+  model:
+    _target_: models.model.CorefModel
+    language_model: "longformer-base-4096"
+
+<<<<<<< HEAD
+=======
+model:
+  _target_: models.model.BaseModel
+  language_model: "bert-base-cased"
+  your_feature: 1
+
+optim_params:
+  optimizer: "radam"
+  lr: 2e-4
+  lm_lr: 2e-5
+  lm_weight_decay: 0.0
+  weight_decay: 0
+>>>>>>> ad95e0f8c154fae7b5977055ce475514db35b1e0
