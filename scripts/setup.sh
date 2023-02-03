@@ -75,6 +75,6 @@ function compile_language() {
 
 compile_language english
 
-conda activate coref
+conda activate $ENV_NAME
 python minimize.py
 
