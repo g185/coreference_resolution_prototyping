@@ -4,7 +4,6 @@ import hydra
 import pytorch_lightning as pl
 import torch
 import math
-from sklearn.metrics import f1_score, precision_score, recall_score
 from torchmetrics import *
 
 

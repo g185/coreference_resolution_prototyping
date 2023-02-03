@@ -8,12 +8,12 @@
             "name": "debug-cpu",
             "type": "python",
             "request": "launch",
-            "program": "/mnt/ssd/coreference_resolution_prototyping/src/train.py",
+            "program": "${cwd}/src/train.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": ["train.pl_trainer.fast_dev_run=True"],
             "env": {
-                "PYTHONPATH": "/mnt/ssd/coreference_resolution_prototyping"
+                "PYTHONPATH": "${cwd}"
             }
         },
 
@@ -26,7 +26,7 @@
             "justMyCode": true,
             "args": [],
             "env": {
-                "PYTHONPATH": "/mnt/ssd/coreference_resolution_prototyping"
+                "PYTHONPATH": "${cwd}"
             }
         },
 
