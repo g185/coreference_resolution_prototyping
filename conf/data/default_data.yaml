@@ -8,6 +8,7 @@ datamodule:
           - 'data/prepare_ontonotes/train.english.jsonlines'
         max_doc_len: 4096
         processed_dataset_path: 'data/cache/train'
+        tokenizer: "${model.module.model.huggingface_model_name}"
     val:
       - _target_: data.datasets.OntonotesDataset
         name: 'val'
@@ -15,6 +16,7 @@ datamodule:
           - 'data/prepare_ontonotes/dev.english.jsonlines'
         max_doc_len: 4096
         processed_dataset_path: 'data/cache/val'
+        tokenizer: "${model.module.model.huggingface_model_name}"
     test:
       - _target_: data.datasets.OntonotesDataset
         name: 'test'
@@ -22,6 +24,7 @@ datamodule:
           - 'data/prepare_ontonotes/test.english.jsonlines'
         max_doc_len: 4096
         processed_dataset_path: 'data/cache/test'
+        tokenizer: "${model.module.model.huggingface_model_name}"
 
 
 

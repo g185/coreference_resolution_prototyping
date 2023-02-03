@@ -20,14 +20,14 @@ def prepare_data(set):
 
 
 class OntonotesDataset(Dataset):
-    def __init__(self, name: str, path: str, max_doc_len, processed_dataset_path, **kwargs):
+    def __init__(self, name: str, path: str, max_doc_len, processed_dataset_path, tokenizer, **kwargs):
         super().__init__()
         # cache, usefast, prefixspace, speakers, sentence_splitting(to extract spans)
         self.max_doc_len = max_doc_len
         try:
             self.set = load_from_disk(hydra.utils.get_original_cwd() + "/" + processed_dataset_path)
         except:
-            self.tokenizer = AutoTokenizer.from_pretrained("allenai/longformer-base-4096", use_fast=True, add_prefix_space=True)
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True, add_prefix_space=True)
             self.set = dt.from_pandas(src.common.util.to_dataframe(path[0]))
             self.set = self.prepare_data(self.set)
             self.set = self.set.map(self.encode, batched=False, fn_kwargs={"tokenizer": self.tokenizer})

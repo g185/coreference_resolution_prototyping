@@ -16,6 +16,7 @@ from rich.console import Console
 from src.data.pl_data_modules import BasePLDataModule
 from src.models.pl_modules import BasePLModule
 
+torch.set_printoptions(edgeitems=100)
 
 def train(conf: omegaconf.DictConfig) -> None:
     # fancy logger

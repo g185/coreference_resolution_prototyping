@@ -33,9 +33,9 @@ class FullyConnectedLayer(Module):
 class CorefModel(torch.nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.model = AutoModel.from_pretrained("allenai/longformer-base-4096")
-        self.config = AutoConfig.from_pretrained(
-            "allenai/longformer-base-4096")
+        self.hf_model_name = kwargs["huggingface_model_name"]
+        self.model = AutoModel.from_pretrained(self.hf_model_name)
+        self.config = AutoConfig.from_pretrained(self.hf_model_name)
         self.representation_start = FullyConnectedLayer(
             input_dim=768, hidden_size=1000, output_dim=768, dropout_prob=0.3)
         self.representation_end = FullyConnectedLayer(
@@ -47,14 +47,7 @@ class CorefModel(torch.nn.Module):
             param.requires_grad = False
 
         self.cosine_similarity = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
-        torch.set_printoptions(edgeitems=100)
-        self.classification_head = torch.nn.Sequential(
-            torch.nn.Linear(self.config.hidden_size,
-                            self.config.hidden_size // 2),
-            torch.nn.Dropout(0.2),
-            torch.nn.ReLU(),
-            torch.nn.Linear(self.config.hidden_size // 2, 1)
-        )
+
 
     def forward(
             self,
@@ -83,7 +76,6 @@ class CorefModel(torch.nn.Module):
     def forward_as_BCE_classification(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
                                         attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-
         loss = []
         preds = []
         golds = []

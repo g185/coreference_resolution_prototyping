@@ -31,9 +31,6 @@ class BasePLDataModule(pl.LightningDataModule):
 
     def setup(self, stage: Optional[str] = None):
         if stage == "fit" or stage is None:
-            # usually there is only one dataset for train
-            # if you need more train loader, you can follow
-            # the same logic as val and test datasets
             self.train_dataset = hydra.utils.instantiate(self.datasets.train[0])
             self.val_datasets = [
                 hydra.utils.instantiate(dataset_cfg)
