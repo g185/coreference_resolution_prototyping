@@ -1,0 +1,41 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "train-cpu",
+            "type": "python",
+            "request": "launch",
+            "program": "/mnt/ssd/coreference_resolution_prototyping/src/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["train.pl_trainer.fast_dev_run=True"],
+            "env": {
+                "PYTHONPATH": "/mnt/ssd/coreference_resolution_prototyping"
+            }
+            
+
+        },
+
+        {
+            "name": "train-gpu",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
+
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

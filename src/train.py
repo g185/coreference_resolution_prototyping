@@ -13,7 +13,7 @@ from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBar
 from pytorch_lightning.loggers import WandbLogger
 from rich.console import Console
 
-from data.pl_data_modules import BasePLDataModule
+from src.data.pl_data_modules import BasePLDataModule
 from src.models.pl_modules import BasePLModule
 
 
@@ -29,7 +29,7 @@ def train(conf: omegaconf.DictConfig) -> None:
     if conf.train.pl_trainer.fast_dev_run:
         console.log(f"Debug mode {conf.train.pl_trainer.fast_dev_run}. Forcing debugger configuration")
         # Debuggers don't like GPUs nor multiprocessing
-        conf.train.pl_trainer.gpus = 0
+        conf.train.pl_trainer.accelerator = "cpu"
         conf.train.pl_trainer.precision = 32
         conf.data.datamodule.num_workers = {k: 0 for k in conf.data.datamodule.num_workers}
         # Switch wandb to offline mode to prevent online logging
@@ -49,7 +49,7 @@ def train(conf: omegaconf.DictConfig) -> None:
     # main module declaration
     console.log(f"Instantiating the Model")
     pl_module: BasePLModule = hydra.utils.instantiate(
-        conf.model.module, labels=pl_data_module.labels, _recursive_=False
+        conf.model.module, _recursive_=False
     )
 
     experiment_logger: Optional[WandbLogger] = None
