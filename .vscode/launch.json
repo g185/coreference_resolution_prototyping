@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "train-cpu",
+            "name": "debug-cpu",
             "type": "python",
             "request": "launch",
             "program": "/mnt/ssd/coreference_resolution_prototyping/src/train.py",
@@ -15,18 +15,19 @@
             "env": {
                 "PYTHONPATH": "/mnt/ssd/coreference_resolution_prototyping"
             }
-            
-
         },
 
         {
-            "name": "train-gpu",
+            "name": "debug-gpu",
             "type": "python",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": []
+            "args": [],
+            "env": {
+                "PYTHONPATH": "/mnt/ssd/coreference_resolution_prototyping"
+            }
         },
 
         {
