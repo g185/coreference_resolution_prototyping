@@ -1,12 +1,12 @@
 from typing import Tuple
 from typing import Dict, Union
-
+import numpy as np
 import hydra.utils
 import torch
 from torch.utils.data import Dataset
 
 import os
-import src.common.util
+import src.common.util as util
 
 from torch.utils.data import Dataset
 from datasets import  load_from_disk
@@ -28,7 +28,7 @@ class OntonotesDataset(Dataset):
             self.set = load_from_disk(hydra.utils.get_original_cwd() + "/" + processed_dataset_path)
         except:
             self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True, add_prefix_space=True)
-            self.set = dt.from_pandas(src.common.util.to_dataframe(path[0]))
+            self.set = dt.from_pandas(util.to_dataframe(path[0]))
             self.set = self.prepare_data(self.set)
             self.set = self.set.map(self.encode, batched=False, fn_kwargs={"tokenizer": self.tokenizer})
             self.set = self.set.remove_columns(column_names=["speakers", "clusters"])
@@ -38,6 +38,7 @@ class OntonotesDataset(Dataset):
 
     def prepare_data(self, set):
         return set.filter(lambda x: len(self.tokenizer(x["tokens"])["input_ids"]) <= self.max_doc_len)
+    
     def encode(self, example, tokenizer):
         if "clusters" not in example:
             example["clusters"] = []
@@ -48,12 +49,12 @@ class OntonotesDataset(Dataset):
         encoded["input_ids"] = tokenized["input_ids"]
         encoded["offset_mapping"] = tokenized["offset_mapping"]
         encoded["attention_mask"] = tokenized["attention_mask"]
-        try:
-            encoded["gold_clusters"] = [[(tokenized.word_to_tokens(start).start,
+
+        encoded["gold_clusters"] = [[(tokenized.word_to_tokens(start).start,
                                  tokenized.word_to_tokens(end).end - 1)
                                          for start, end in cluster if tokenized.word_to_tokens(start) is not None and tokenized.word_to_tokens(end) is not None] for cluster in example["clusters"]]
-        except:
-            a = 1
+        #encoded["s2s_indices"] = self.s2s(
+        #    encoded["input_ids"], encoded["gold_clusters"])
         return encoded
 
     def __len__(self) -> int:
@@ -67,16 +68,40 @@ class OntonotesDataset(Dataset):
                 "attention_mask": torch.tensor(elem["attention_mask"]),
                 "offset_mapping": torch.tensor(elem["offset_mapping"]),
                 "gold_edges": self.create_edge_matrix(elem["input_ids"], elem["gold_clusters"])}
+                #"gold_edges": self.idxs(elem["input_ids"], elem["s2s_indices"])}
 
-    def create_edge_matrix(self, ids, coreferences, type="s2s"):
-        matrix = torch.zeros(len(ids), len(ids))
+    def s2s(self, ids, coreferences):
         start_bpe_to_cluster = {}
         end_bpe_to_cluster = {}
         for cluster in coreferences:
             for idx, (start_bpe_idx, end_bpe_idx) in enumerate(cluster):
-                starts_without_idx = [list(range(elem[0], elem[1] +1)) for elem in cluster]
-                starts_without_idx = [item for sublist in starts_without_idx for item in sublist]
-                #starts_without_idx = [elem[0] for elem in cluster]
+                starts_without_idx = [elem[0] for elem in cluster]
+                ends_without_idx = [elem[1] for elem in cluster]
+                ends_without_idx.pop(idx)
+                starts_without_idx.pop(idx)
+                if start_bpe_idx not in start_bpe_to_cluster.keys():
+                    start_bpe_to_cluster[start_bpe_idx] = []
+                if end_bpe_idx not in end_bpe_to_cluster.keys():
+                    end_bpe_to_cluster[end_bpe_idx] = []
+                end_bpe_to_cluster[end_bpe_idx].extend(ends_without_idx)
+                start_bpe_to_cluster[start_bpe_idx].extend(starts_without_idx)
+        return [(start_bpe_idx, end_bpe_idx) for start_bpe_idx, target_bpe_idxs in start_bpe_to_cluster.items() for end_bpe_idx in target_bpe_idxs]
+
+    def idxs(self, ids, idxs):
+        matrix = torch.zeros(len(ids), len(ids))
+        for start_bpe_idx, target_bpe_idx in idxs:
+            matrix[start_bpe_idx][target_bpe_idx] = 1
+        return matrix
+
+    def create_edge_matrix(self, ids, coreferences, type="s2s"):
+        matrix = np.zeros((len(ids), len(ids)))
+        start_bpe_to_cluster = {}
+        end_bpe_to_cluster = {}
+        for cluster in coreferences:
+            for idx, (start_bpe_idx, end_bpe_idx) in enumerate(cluster):
+                #starts_without_idx = [list(range(elem[0], elem[1] +1)) for elem in cluster]
+                #starts_without_idx = [item for sublist in starts_without_idx for item in sublist]
+                starts_without_idx = [elem[0] for elem in cluster]
                 ends_without_idx = [elem[1] for elem in cluster]
                 ends_without_idx.pop(idx)
                 starts_without_idx.pop(idx)
@@ -92,4 +117,5 @@ class OntonotesDataset(Dataset):
             for target_bpe_idx in list_of_coreferring_idxs:
                 matrix[start_bpe_idx][target_bpe_idx] = 1
         return matrix
+        
 

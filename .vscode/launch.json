@@ -21,7 +21,7 @@
             "name": "debug-gpu",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "${cwd}/src/train.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [],
