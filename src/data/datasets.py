@@ -53,8 +53,31 @@ class OntonotesDataset(Dataset):
         encoded["gold_clusters"] = [[(tokenized.word_to_tokens(start).start,
                                  tokenized.word_to_tokens(end).end - 1)
                                          for start, end in cluster if tokenized.word_to_tokens(start) is not None and tokenized.word_to_tokens(end) is not None] for cluster in example["clusters"]]
+        
         #encoded["s2s_indices"] = self.s2s(
-        #    encoded["input_ids"], encoded["gold_clusters"])
+        #encoded["input_ids"], encoded["gold_clusters"])
+        return encoded
+
+
+    def encode_with_eos(self, example, tokenizer):
+        if "clusters" not in example:
+            example["clusters"] = []
+
+        encoded = {"tokens": example["tokens"]}
+        tokenized = tokenizer(example["tokens"], padding="max_length", truncation=True, add_special_tokens=True, max_length = 4096,
+                              is_split_into_words=True, return_offsets_mapping=True)
+
+        encoded["input_ids"] = tokenized["input_ids"]
+        encoded["offset_mapping"] = tokenized["offset_mapping"]
+        encoded["attention_mask"] = tokenized["attention_mask"]
+
+        encoded["gold_clusters"] = [[(tokenized.word_to_tokens(start).start,
+                                 tokenized.word_to_tokens(end).end - 1)
+                                         for start, end in cluster if tokenized.word_to_tokens(start) is not None and tokenized.word_to_tokens(end) is not None] for cluster in example["clusters"]]
+        encoded["eos_in_ids"] = [tokenized.word_to_tokens(eos).start for eos in example["EOS"]]
+
+        #encoded["s2s_indices"] = self.s2s(
+        #encoded["input_ids"], encoded["gold_clusters"])
         return encoded
 
     def __len__(self) -> int:
@@ -67,7 +90,9 @@ class OntonotesDataset(Dataset):
         return {"input_ids": torch.tensor(elem["input_ids"]),
                 "attention_mask": torch.tensor(elem["attention_mask"]),
                 "offset_mapping": torch.tensor(elem["offset_mapping"]),
-                "gold_edges": self.create_edge_matrix(elem["input_ids"], elem["gold_clusters"])}
+                "gold_edges": self.create_edge_matrix(elem["input_ids"], elem["gold_clusters"]),
+                "eos", torch.tensor(elem["eos_in_ids"])
+                }
                 #"gold_edges": self.idxs(elem["input_ids"], elem["s2s_indices"])}
 
     def s2s(self, ids, coreferences):

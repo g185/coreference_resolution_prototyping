@@ -16,6 +16,9 @@ def to_dataframe(file_path):
     elif 'sentences' in df.columns:
         # this is just for ontonotes. please avoid using 'sentences' and use 'text' or 'tokens'
         df['tokens'] = df['sentences'].apply(lambda x: flatten(x))
+        df["EOS"] = [len(sentence) for sentence in df["sentences"]]
+        df["EOS"] = [sum(df["EOS"][0:(i[0]+1)]) for i in enumerate(df["EOS"])]
+        
     elif 'text' in df.columns:
         nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
         texts = df['text'].tolist()
