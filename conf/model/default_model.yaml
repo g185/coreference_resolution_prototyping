@@ -2,7 +2,7 @@ module:
   _target_: models.pl_modules.BasePLModule
   optimizer:
     _target_: torch.optim.RAdam
-    lr: 1e-5
+    lr: 4e-6
     weight_decay: 0
   model:
     _target_: models.model.CorefModel

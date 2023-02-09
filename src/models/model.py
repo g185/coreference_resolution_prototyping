@@ -43,11 +43,10 @@ class CorefModel(torch.nn.Module):
 
         #self.encoder = DistilBertModel(DistilBertConfig())
 
-        for param in self.model.parameters():
-            param.requires_grad = False
+        #for param in self.model.parameters():
+        #    param.requires_grad = False
 
         self.cosine_similarity = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
-
 
     def forward(
             self,
