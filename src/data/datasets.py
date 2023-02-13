@@ -53,6 +53,7 @@ class OntonotesDataset(Dataset):
         encoded["gold_clusters"] = [[(tokenized.word_to_tokens(start).start,
                                  tokenized.word_to_tokens(end).end - 1)
                                          for start, end in cluster if tokenized.word_to_tokens(start) is not None and tokenized.word_to_tokens(end) is not None] for cluster in example["clusters"]]
+        encoded["EOS_indices"] = [tokenized.word_to_tokens(eos - 1).start for eos in example["EOS"] if tokenized.word_to_tokens(eos - 1) is not None]        
         
         #encoded["s2s_indices"] = self.s2s(
         #encoded["input_ids"], encoded["gold_clusters"])
@@ -74,7 +75,7 @@ class OntonotesDataset(Dataset):
         encoded["gold_clusters"] = [[(tokenized.word_to_tokens(start).start,
                                  tokenized.word_to_tokens(end).end - 1)
                                          for start, end in cluster if tokenized.word_to_tokens(start) is not None and tokenized.word_to_tokens(end) is not None] for cluster in example["clusters"]]
-        encoded["eos_in_ids"] = [tokenized.word_to_tokens(eos).start for eos in example["EOS"]]
+
 
         #encoded["s2s_indices"] = self.s2s(
         #encoded["input_ids"], encoded["gold_clusters"])
@@ -91,9 +92,14 @@ class OntonotesDataset(Dataset):
                 "attention_mask": torch.tensor(elem["attention_mask"]),
                 "offset_mapping": torch.tensor(elem["offset_mapping"]),
                 "gold_edges": self.create_edge_matrix(elem["input_ids"], elem["gold_clusters"]),
-                "eos", torch.tensor(elem["eos_in_ids"])
+                "eos": self.eos(elem["input_ids"], elem["EOS_indices"])
                 }
                 #"gold_edges": self.idxs(elem["input_ids"], elem["s2s_indices"])}
+
+    def eos(self, ids, eos_indices):
+        a = np.zeros(len(ids))
+        a[eos_indices]=1
+        return a
 
     def s2s(self, ids, coreferences):
         start_bpe_to_cluster = {}

@@ -52,7 +52,7 @@ class CorefModel(torch.nn.Module):
             self,
             batch: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
-        return self.forward_as_BCE_classification(batch)
+        return self.forward_as_BCE_classification_eos(batch)
 
 
 
@@ -90,15 +90,29 @@ class CorefModel(torch.nn.Module):
         loss = []
         preds = []
         golds = []
-        for lhs, om, gold, eos in zip(last_hidden_states, batch["offset_mapping"], batch["gold_edges"], batch["eos"]):
-            idxs_start_bpe = (om[:, 0] == 0) & (om[:, 1] != 0)
-            lhs = lhs[idxs_start_bpe]
-            gold = gold[idxs_start_bpe][:, idxs_start_bpe]
+        for ids, lhs, om, gold, eos in zip(batch["input_ids"], last_hidden_states, batch["offset_mapping"], batch["gold_edges"], batch["eos"]):
+            mask = torch.zeros_like(gold, dtype=bool)
+
+            prec = 0
+            idxs = torch.where(eos==1)
+            for idx in idxs[0]:
+                for i in range(prec, idx):
+                    for j in range(prec,idx):
+                        mask[i][j] = True
+                prec = idx
+            mask = mask.triu().fill_diagonal_(0)
+            
+            #idxs_start_bpe = (om[:, 0] == 0) & (om[:, 1] != 0)
+            eoi = (ids == 2).nonzero(as_tuple=False)
+            lhs = lhs[:eoi]
+            gold = gold[:eoi, :eoi]
 
             #representations = self.representation_start(inputs_embeds = lhs.unsqueeze(0))["last_hidden_state"].squeeze(0)# S X RH
-
+            mask = mask[:eoi, :eoi]
             coref_logits = self.representation_start(
                 lhs) @ self.representation_end(lhs).T
+            coref_logits = coref_logits[mask==1]
+            gold = gold[mask==1]
             #coref_logits = coref_logits.fill_diagonal_(0)
             coref_logits = coref_logits.flatten()
             preds.append(torch.sigmoid(coref_logits.detach()))  # S*S

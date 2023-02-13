@@ -16,7 +16,6 @@
                 "PYTHONPATH": "${cwd}"
             }
         },
-
         {
             "name": "debug-gpu",
             "type": "python",
