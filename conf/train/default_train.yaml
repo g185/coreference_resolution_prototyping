@@ -25,16 +25,16 @@ pl_trainer:
 # "early_stopping_callback: null" will disable early stopping
 early_stopping_callback:
   _target_: pytorch_lightning.callbacks.EarlyStopping
-  monitor: val/loss
-  mode: min
-  patience: 20
+  monitor: val/f1_score
+  mode: max
+  patience: 10
 
 # model_checkpoint_callback
 # "model_checkpoint_callback: null" will disable model checkpointing
 model_checkpoint_callback:
   _target_: pytorch_lightning.callbacks.ModelCheckpoint
-  monitor: val/loss
-  mode: min
+  monitor: val/f1_score
+  mode: max
   verbose: True
   save_top_k: 1
   filename: 'checkpoint-val_loss_{val_loss:.4f}-epoch_{epoch:02d}'
