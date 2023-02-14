@@ -20,10 +20,11 @@ def prepare_data(set):
 
 
 class OntonotesDataset(Dataset):
-    def __init__(self, name: str, path: str, max_doc_len, processed_dataset_path, tokenizer, **kwargs):
+    def __init__(self, name: str, path: str, max_doc_len, processed_dataset_path, tokenizer, mode, **kwargs):
         super().__init__()
         # cache, usefast, prefixspace, speakers, sentence_splitting(to extract spans)
         self.max_doc_len = max_doc_len
+        self.mode = mode
         try:
             self.set = load_from_disk(hydra.utils.get_original_cwd() + "/" + processed_dataset_path)
         except:
@@ -44,41 +45,17 @@ class OntonotesDataset(Dataset):
             example["clusters"] = []
 
         encoded = {"tokens": example["tokens"]}
-        tokenized = tokenizer(example["tokens"], padding="max_length", truncation=True, add_special_tokens=True, max_length = 4096,
-                              is_split_into_words=True, return_offsets_mapping=True)
-        encoded["input_ids"] = tokenized["input_ids"]
-        encoded["offset_mapping"] = tokenized["offset_mapping"]
-        encoded["attention_mask"] = tokenized["attention_mask"]
-
-        encoded["gold_clusters"] = [[(tokenized.word_to_tokens(start).start,
-                                 tokenized.word_to_tokens(end).end - 1)
-                                         for start, end in cluster if tokenized.word_to_tokens(start) is not None and tokenized.word_to_tokens(end) is not None] for cluster in example["clusters"]]
-        encoded["EOS_indices"] = [tokenized.word_to_tokens(eos - 1).start for eos in example["EOS"] if tokenized.word_to_tokens(eos - 1) is not None]        
-        
-        #encoded["s2s_indices"] = self.s2s(
-        #encoded["input_ids"], encoded["gold_clusters"])
-        return encoded
-
-
-    def encode_with_eos(self, example, tokenizer):
-        if "clusters" not in example:
-            example["clusters"] = []
-
-        encoded = {"tokens": example["tokens"]}
-        tokenized = tokenizer(example["tokens"], padding="max_length", truncation=True, add_special_tokens=True, max_length = 4096,
+        tokenized = tokenizer(example["tokens"], padding="max_length", truncation=True, add_special_tokens=True, max_length = self.max_doc_len,
                               is_split_into_words=True, return_offsets_mapping=True)
 
         encoded["input_ids"] = tokenized["input_ids"]
         encoded["offset_mapping"] = tokenized["offset_mapping"]
         encoded["attention_mask"] = tokenized["attention_mask"]
-
         encoded["gold_clusters"] = [[(tokenized.word_to_tokens(start).start,
                                  tokenized.word_to_tokens(end).end - 1)
                                          for start, end in cluster if tokenized.word_to_tokens(start) is not None and tokenized.word_to_tokens(end) is not None] for cluster in example["clusters"]]
+        encoded["EOS_indices"] = [tokenized.word_to_tokens(eos - 1).start for eos in example["EOS"] if tokenized.word_to_tokens(eos - 1) is not None]       
 
-
-        #encoded["s2s_indices"] = self.s2s(
-        #encoded["input_ids"], encoded["gold_clusters"])
         return encoded
 
     def __len__(self) -> int:
@@ -90,63 +67,55 @@ class OntonotesDataset(Dataset):
         elem = self.set[index]
         return {"input_ids": torch.tensor(elem["input_ids"]),
                 "attention_mask": torch.tensor(elem["attention_mask"]),
-                "offset_mapping": torch.tensor(elem["offset_mapping"]),
-                "gold_edges": self.create_edge_matrix(elem["input_ids"], elem["gold_clusters"]),
-                "eos": self.eos(elem["input_ids"], elem["EOS_indices"])
+                "gold_edges": torch.tensor(self.create_gold_matrix(len(elem["input_ids"]), elem["gold_clusters"])),
+                "mask": torch.tensor(self.mask(elem["input_ids"], torch.tensor(elem["offset_mapping"]), elem["EOS_indices"]))
                 }
-                #"gold_edges": self.idxs(elem["input_ids"], elem["s2s_indices"])}
 
-    def eos(self, ids, eos_indices):
-        a = np.zeros(len(ids))
-        a[eos_indices]=1
-        return a
+    def mask(self, ids, offset_mapping, eos_indices):
+        if self.mode == "s2e_sentence_level":
+            mask = torch.zeros((len(ids), len(ids)))
+            prec = 0
+            for idx in eos_indices:
+                for i in range(prec, idx + 1):
+                    for j in range(prec,idx + 1):
+                        mask[i][j] = 1
+                prec = idx
+            mask = np.triu(mask)
+        if self.mode == "s2e":
+            mask = np.zeros(len(ids))
+            eoi = (torch.tensor(ids)==2).nonzero(as_tuple=False)
+            mask[0:eoi+1] = 1
+        if self.mode == "s2s":
+            mask = np.zeros(len(ids))
+            idxs_start_words = (offset_mapping[:,0] == 0) & (offset_mapping[:,1] != 0)
+            mask[idxs_start_words] = 1
+        return mask
 
-    def s2s(self, ids, coreferences):
-        start_bpe_to_cluster = {}
-        end_bpe_to_cluster = {}
-        for cluster in coreferences:
-            for idx, (start_bpe_idx, end_bpe_idx) in enumerate(cluster):
-                starts_without_idx = [elem[0] for elem in cluster]
-                ends_without_idx = [elem[1] for elem in cluster]
-                ends_without_idx.pop(idx)
-                starts_without_idx.pop(idx)
-                if start_bpe_idx not in start_bpe_to_cluster.keys():
-                    start_bpe_to_cluster[start_bpe_idx] = []
-                if end_bpe_idx not in end_bpe_to_cluster.keys():
-                    end_bpe_to_cluster[end_bpe_idx] = []
-                end_bpe_to_cluster[end_bpe_idx].extend(ends_without_idx)
-                start_bpe_to_cluster[start_bpe_idx].extend(starts_without_idx)
-        return [(start_bpe_idx, end_bpe_idx) for start_bpe_idx, target_bpe_idxs in start_bpe_to_cluster.items() for end_bpe_idx in target_bpe_idxs]
 
-    def idxs(self, ids, idxs):
-        matrix = torch.zeros(len(ids), len(ids))
-        for start_bpe_idx, target_bpe_idx in idxs:
-            matrix[start_bpe_idx][target_bpe_idx] = 1
-        return matrix
 
-    def create_edge_matrix(self, ids, coreferences, type="s2s"):
-        matrix = np.zeros((len(ids), len(ids)))
-        start_bpe_to_cluster = {}
-        end_bpe_to_cluster = {}
-        for cluster in coreferences:
-            for idx, (start_bpe_idx, end_bpe_idx) in enumerate(cluster):
-                #starts_without_idx = [list(range(elem[0], elem[1] +1)) for elem in cluster]
-                #starts_without_idx = [item for sublist in starts_without_idx for item in sublist]
-                starts_without_idx = [elem[0] for elem in cluster]
-                ends_without_idx = [elem[1] for elem in cluster]
-                ends_without_idx.pop(idx)
-                starts_without_idx.pop(idx)
+        
 
-                if start_bpe_idx not in start_bpe_to_cluster.keys():
-                    start_bpe_to_cluster[start_bpe_idx] = []
-                if end_bpe_idx not in end_bpe_to_cluster.keys():
-                    end_bpe_to_cluster[end_bpe_idx] = []
-                end_bpe_to_cluster[end_bpe_idx].extend(ends_without_idx)
-                start_bpe_to_cluster[start_bpe_idx].append(end_bpe_idx)
 
-        for start_bpe_idx, list_of_coreferring_idxs in start_bpe_to_cluster.items():
-            for target_bpe_idx in list_of_coreferring_idxs:
-                matrix[start_bpe_idx][target_bpe_idx] = 1
+
+    def create_gold_matrix(self, idslen, coreferences, eos = None):
+        matrix = np.zeros((idslen, idslen))
+
+        if self.mode == "s2e" or self.mode == "s2e_sentence_level":
+            for cluster in coreferences:
+                for start_bpe_idx, end_bpe_idx in cluster:
+                    matrix[start_bpe_idx][end_bpe_idx] = 1
+                    
+        elif self.mode == "s2s":
+            for cluster in coreferences:
+                for idx, (start_bpe_idx, end_bpe_idx) in enumerate(cluster):
+                    #starts_without_idx = [list(range(elem[0], elem[1] +1)) for elem in cluster]
+                    #starts_without_idx = [item for sublist in starts_without_idx for item in sublist]
+                    starts_without_idx = [elem[0] for elem in cluster]
+                    starts_without_idx.pop(idx)
+                    for target_bpe_idx in starts_without_idx:
+                        matrix[start_bpe_idx][target_bpe_idx] = 1
+
+        
         return matrix
         
 

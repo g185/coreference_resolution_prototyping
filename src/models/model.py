@@ -36,110 +36,119 @@ class CorefModel(torch.nn.Module):
         self.hf_model_name = kwargs["huggingface_model_name"]
         self.model = AutoModel.from_pretrained(self.hf_model_name)
         self.config = AutoConfig.from_pretrained(self.hf_model_name)
+        self.linear = kwargs["linear_layer_hidden_size"]
         self.representation_start = FullyConnectedLayer(
-            input_dim=768, hidden_size=1000, output_dim=768, dropout_prob=0.3)
+            input_dim=768, hidden_size=self.linear, output_dim=768, dropout_prob=0.3)
         self.representation_end = FullyConnectedLayer(
-            input_dim=768, hidden_size=1000, output_dim=768, dropout_prob=0.3)
+            input_dim=768, hidden_size=self.linear, output_dim=768, dropout_prob=0.3)
+        self.mode = kwargs["mode"]
+        self.pos_weight = kwargs["pos_weight"]
+        if kwargs["transformer_freeze"] == "freezed":
+            for param in self.model.parameters():
+                param.requires_grad = False
 
-        #self.encoder = DistilBertModel(DistilBertConfig())
-
-        #for param in self.model.parameters():
-        #    param.requires_grad = False
-
-        self.cosine_similarity = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
 
     def forward(
             self,
             batch: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
-        return self.forward_as_BCE_classification_eos(batch)
+        if self.mode == "s2s":
+            return self.forward_as_BCE_classification_s2s(batch)
+        elif self.mode == "s2e":
+            return self.forward_as_BCE_classification_s2e(batch)
+        elif self.mode == "s2e_sentence_level":
+            return self.forward_as_BCE_classification_s2e_sentence_level(batch)
 
 
 
-    def forward_as_BCE_classification(self, batch):
+    def forward_as_BCE_classification_s2s(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
                                         attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
         loss = []
         preds = []
         golds = []
-        for lhs, om, gold in zip(last_hidden_states, batch["offset_mapping"], batch["gold_edges"]):
-            idxs_start_bpe = (om[:, 0] == 0) & (om[:, 1] != 0)
-            lhs = lhs[idxs_start_bpe]
-            gold = gold[idxs_start_bpe][:, idxs_start_bpe]
 
-            #representations = self.representation_start(inputs_embeds = lhs.unsqueeze(0))["last_hidden_state"].squeeze(0)# S X RH
+        for lhs, mask, gold in zip(last_hidden_states, batch["mask"], batch["gold_edges"]):
+            lhs = lhs[mask == 1]
+            gold = gold[mask == 1][:, mask == 1]
 
             coref_logits = self.representation_start(
                 lhs) @ self.representation_end(lhs).T
-            #coref_logits = coref_logits.fill_diagonal_(0)
-            coref_logits = coref_logits.flatten()
-            preds.append(torch.sigmoid(coref_logits.detach()))  # S*S
+
+            coref_logits = coref_logits
+
+            pred = torch.sigmoid(coref_logits.flatten().detach())
+            gold = gold.flatten().detach()
+
+            preds.append(pred)  # S*S
             golds.append(gold.flatten().detach())  # S*S
 
             loss.append(torch.nn.functional.binary_cross_entropy_with_logits(
-                coref_logits, gold.flatten(), pos_weight=torch.tensor(10)))
+                coref_logits.flatten(), gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
         loss = torch.stack(loss).sum()
         output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
                   "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
                   "loss": loss}
         return output
 
-    def forward_as_BCE_classification_eos(self, batch):
+    def forward_as_BCE_classification_s2e_sentence_level(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
                                         attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
         loss = []
         preds = []
         golds = []
-        for ids, lhs, om, gold, eos in zip(batch["input_ids"], last_hidden_states, batch["offset_mapping"], batch["gold_edges"], batch["eos"]):
-            mask = torch.zeros_like(gold, dtype=bool)
+        for  lhs, ids, mask, gold in zip(last_hidden_states, batch["input_ids"], batch["mask"], batch["gold_edges"]):
 
-            prec = 0
-            idxs = torch.where(eos==1)
-            for idx in idxs[0]:
-                for i in range(prec, idx):
-                    for j in range(prec,idx):
-                        mask[i][j] = True
-                prec = idx
-            mask = mask.triu().fill_diagonal_(0)
-            
-            #idxs_start_bpe = (om[:, 0] == 0) & (om[:, 1] != 0)
             eoi = (ids == 2).nonzero(as_tuple=False)
             lhs = lhs[:eoi]
             gold = gold[:eoi, :eoi]
 
-            #representations = self.representation_start(inputs_embeds = lhs.unsqueeze(0))["last_hidden_state"].squeeze(0)# S X RH
+            
             mask = mask[:eoi, :eoi]
             coref_logits = self.representation_start(
                 lhs) @ self.representation_end(lhs).T
             coref_logits = coref_logits[mask==1]
             gold = gold[mask==1]
-            #coref_logits = coref_logits.fill_diagonal_(0)
+            
             coref_logits = coref_logits.flatten()
             preds.append(torch.sigmoid(coref_logits.detach()))  # S*S
             golds.append(gold.flatten().detach())  # S*S
 
             loss.append(torch.nn.functional.binary_cross_entropy_with_logits(
-                coref_logits, gold.flatten(), pos_weight=torch.tensor(10)))
+                coref_logits, gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
         loss = torch.stack(loss).sum()
+
         output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
                   "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
                   "loss": loss}
         return output
 
-    def forward_as_MSE_regression(self, batch):
-        last_hidden_state = self.model(input_ids=batch["input_ids"],
-                                       attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
 
-        representations = self.representation(last_hidden_state)  # B X S X RH
+    def forward_as_BCE_classification_s2e(self, batch):
+        last_hidden_states = self.model(input_ids=batch["input_ids"],
+                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
+        loss = []
+        preds = []
+        golds = []
+        for  lhs, ids, gold in zip(last_hidden_states, batch["input_ids"],  batch["gold_edges"]):
 
-        coref_logits = representations @ representations.permute([0, 2, 1])
+            eoi = (ids == 2).nonzero(as_tuple=False)
+            lhs = lhs[:eoi]
+            gold = gold[:eoi, :eoi]
 
-        coref_logits = coref_logits.squeeze(0).flatten()
-        pred = torch.sigmoid(coref_logits)  # B*S*S
-        gold = batch["gold_edges"].squeeze(0).flatten()  # B*S*S
-        loss_function = torch.nn.MSELoss()
-        loss = loss_function(gold, pred)
-        output = {"pred": pred.detach(),
-                  "gold": gold.detach(),
+            coref_logits = self.representation_start(
+                lhs) @ self.representation_end(lhs).T
+            
+            coref_logits = coref_logits.flatten()
+            preds.append(torch.sigmoid(coref_logits.detach()))  # S*S
+            golds.append(gold.flatten().detach())  # S*S
+
+            loss.append(torch.nn.functional.binary_cross_entropy_with_logits(
+                coref_logits, gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
+        loss = torch.stack(loss).sum()
+
+        output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
+                  "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
                   "loss": loss}
         return output
+

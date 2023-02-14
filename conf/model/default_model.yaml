@@ -8,4 +8,8 @@ module:
     _target_: models.model.CorefModel
     language_model: "longformer-base-4096"
     huggingface_model_name: "allenai/longformer-base-4096"
+    mode: "s2s"
+    transformer_freeze: "unfreezed"
+    pos_weight: 10
+    linear_layer_hidden_size: 1000
 

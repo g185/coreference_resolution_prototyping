@@ -9,6 +9,8 @@ datamodule:
         max_doc_len: 4096
         processed_dataset_path: 'data/cache/train'
         tokenizer: "${model.module.model.huggingface_model_name}"
+        mode: "${model.module.model.mode}"
+        mask: True
     val:
       - _target_: data.datasets.OntonotesDataset
         name: 'val'
@@ -17,6 +19,7 @@ datamodule:
         max_doc_len: 4096
         processed_dataset_path: 'data/cache/val'
         tokenizer: "${model.module.model.huggingface_model_name}"
+        mode: "${model.module.model.mode}"
     test:
       - _target_: data.datasets.OntonotesDataset
         name: 'test'
@@ -25,6 +28,7 @@ datamodule:
         max_doc_len: 4096
         processed_dataset_path: 'data/cache/test'
         tokenizer: "${model.module.model.huggingface_model_name}"
+        mode: "${model.module.model.mode}"
 
 
 
