@@ -38,9 +38,9 @@ class CorefModel(torch.nn.Module):
         self.config = AutoConfig.from_pretrained(self.hf_model_name)
         self.linear = kwargs["linear_layer_hidden_size"]
         self.representation_start = FullyConnectedLayer(
-            input_dim=768, hidden_size=self.linear, output_dim=768, dropout_prob=0.3)
+            input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
         self.representation_end = FullyConnectedLayer(
-            input_dim=768, hidden_size=self.linear, output_dim=768, dropout_prob=0.3)
+            input_dim=self.condig.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
         self.mode = kwargs["mode"]
         self.pos_weight = kwargs["pos_weight"]
         if kwargs["transformer_freeze"] == "freezed":
@@ -67,17 +67,14 @@ class CorefModel(torch.nn.Module):
         loss = []
         preds = []
         golds = []
-
         for lhs, mask, gold in zip(last_hidden_states, batch["mask"], batch["gold_edges"]):
-            lhs = lhs[mask == 1]
-            gold = gold[mask == 1][:, mask == 1]
+            lhs = lhs[mask == 1] #MS * HS
+            gold = gold[mask == 1][:, mask == 1] #MSx MS
 
             coref_logits = self.representation_start(
-                lhs) @ self.representation_end(lhs).T
+                    lhs) @ self.representation_end(lhs).T #MS x MS 
 
-            coref_logits = coref_logits
-
-            pred = torch.sigmoid(coref_logits.flatten().detach())
+            pred = torch.sigmoid(coref_logits.flatten().detach()) #MS * MS
             gold = gold.flatten().detach()
 
             preds.append(pred)  # S*S
@@ -87,8 +84,9 @@ class CorefModel(torch.nn.Module):
                 coref_logits.flatten(), gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
         loss = torch.stack(loss).sum()
         output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
-                  "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
-                  "loss": loss}
+                    "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
+                    "loss": loss}
+
         return output
 
     def forward_as_BCE_classification_s2e_sentence_level(self, batch):
@@ -106,7 +104,7 @@ class CorefModel(torch.nn.Module):
             
             mask = mask[:eoi, :eoi]
             coref_logits = self.representation_start(
-                lhs) @ self.representation_end(lhs).T
+                    lhs) @ self.representation_end(lhs).T
             coref_logits = coref_logits[mask==1]
             gold = gold[mask==1]
             
@@ -115,13 +113,14 @@ class CorefModel(torch.nn.Module):
             golds.append(gold.flatten().detach())  # S*S
 
             loss.append(torch.nn.functional.binary_cross_entropy_with_logits(
-                coref_logits, gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
+                    coref_logits, gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
         loss = torch.stack(loss).sum()
-
         output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
                   "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
                   "loss": loss}
+        
         return output
+
 
 
     def forward_as_BCE_classification_s2e(self, batch):

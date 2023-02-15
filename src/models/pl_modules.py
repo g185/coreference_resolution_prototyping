@@ -52,7 +52,6 @@ class BasePLModule(pl.LightningModule):
 
         avg_metrics = {k: sum([dic[k] for dic in avg_metrics])/len([dic[k]
                                                                     for dic in avg_metrics]) for k in avg_metrics[0]}
-        avg_metrics["val/avg_loss"] = torch.stack(avg_val_loss).mean()
         self.log_dict(avg_metrics)
 
     def test_step(self, batch: dict, batch_idx: int) -> Any:
