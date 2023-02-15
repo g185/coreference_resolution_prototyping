@@ -32,7 +32,7 @@ def evaluate(conf: omegaconf.DictConfig):
     return
 
 
-@hydra.main(config_path="../../conf", config_name="default", version_base="1.1")
+@hydra.main(config_path="../conf", config_name="root")
 def main(conf: omegaconf.DictConfig):
     evaluate(conf)
 

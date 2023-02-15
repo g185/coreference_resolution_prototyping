@@ -59,7 +59,7 @@ class OntonotesDataset(Dataset):
         return encoded
 
     def __len__(self) -> int:
-        return len(self.set["input_ids"])
+        return self.set.shape[0]
 
     def __getitem__(
             self, index
