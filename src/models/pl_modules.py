@@ -6,12 +6,14 @@ import torch
 import math
 from torchmetrics import *
 
+from src.common.metrics import *
 
 class BasePLModule(pl.LightningModule):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__()
         self.save_hyperparameters()
         self.model = hydra.utils.instantiate(self.hparams.model)
+        self.mention_evaluator = MentionEvaluator()
 
     def forward(self, batch) -> dict:
         output_dict = self.model(batch)
