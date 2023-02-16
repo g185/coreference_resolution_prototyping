@@ -40,7 +40,7 @@ class CorefModel(torch.nn.Module):
         self.representation_start = FullyConnectedLayer(
             input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
         self.representation_end = FullyConnectedLayer(
-            input_dim=self.condig.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
+            input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
         self.mode = kwargs["mode"]
         self.pos_weight = kwargs["pos_weight"]
         if kwargs["transformer_freeze"] == "freezed":
