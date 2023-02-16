@@ -6,8 +6,8 @@ datamodule:
         name: 'train'
         path:
           - 'data/prepare_ontonotes/train.english.jsonlines'
-        max_doc_len: 4096
-        processed_dataset_path: 'data/cache/train'
+        max_doc_len: 2048
+        processed_dataset_path: 'data/cache_${data.datamodule.datasets.train[0].max_doc_len}/train'
         tokenizer: "${model.module.model.huggingface_model_name}"
         mode: "${model.module.model.mode}"
         mask: True
@@ -16,8 +16,8 @@ datamodule:
         name: 'val'
         path:
           - 'data/prepare_ontonotes/dev.english.jsonlines'
-        max_doc_len: 4096
-        processed_dataset_path: 'data/cache/val'
+        max_doc_len: 2048
+        processed_dataset_path: 'data/cache_${data.datamodule.datasets.val[0].max_doc_len}/val'
         tokenizer: "${model.module.model.huggingface_model_name}"
         mode: "${model.module.model.mode}"
     test:
@@ -25,8 +25,8 @@ datamodule:
         name: 'test'
         path:
           - 'data/prepare_ontonotes/test.english.jsonlines'
-        max_doc_len: 4096
-        processed_dataset_path: 'data/cache/test'
+        max_doc_len: 2048
+        processed_dataset_path: 'data/cache_${data.datamodule.test[0].max_doc_len}/test'
         tokenizer: "${model.module.model.huggingface_model_name}"
         mode: "${model.module.model.mode}"
 
