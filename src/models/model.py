@@ -74,6 +74,7 @@ class CorefModel(torch.nn.Module):
             coref_logits = self.representation_start(
                     lhs) @ self.representation_end(lhs).T #MS x MS 
 
+            coref_logits = coref_logits.fill_diagonal_(0)
             pred = torch.sigmoid(coref_logits.flatten().detach()) #MS * MS
             gold = gold.flatten().detach()
 

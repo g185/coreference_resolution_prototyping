@@ -68,7 +68,7 @@ class OntonotesDataset(Dataset):
         return {"input_ids": torch.tensor(elem["input_ids"]),
                 "attention_mask": torch.tensor(elem["attention_mask"]),
                 "gold_edges": torch.tensor(self.create_gold_matrix(len(elem["input_ids"]), elem["gold_clusters"])),
-                "mask": torch.tensor(self.mask(elem["input_ids"], torch.tensor(elem["offset_mapping"]), elem["EOS_indices"]))
+                "mask": self.mask(elem["input_ids"], torch.tensor(elem["offset_mapping"]), elem["EOS_indices"])
                 }
 
     def mask(self, ids, offset_mapping, eos_indices):
@@ -80,21 +80,16 @@ class OntonotesDataset(Dataset):
                     for j in range(prec,idx + 1):
                         mask[i][j] = 1
                 prec = idx
-            mask = np.triu(mask)
+            mask = mask.triu()
         if self.mode == "s2e":
-            mask = np.zeros(len(ids))
+            mask = torch.zeros(len(ids))
             eoi = (torch.tensor(ids)==2).nonzero(as_tuple=False)
             mask[0:eoi+1] = 1
         if self.mode == "s2s":
-            mask = np.zeros(len(ids))
+            mask = torch.zeros(len(ids))
             idxs_start_words = (offset_mapping[:,0] == 0) & (offset_mapping[:,1] != 0)
             mask[idxs_start_words] = 1
-            mask = mask.triu().fill_diagonal_(0)
         return mask
-
-
-
-        
 
 
 
