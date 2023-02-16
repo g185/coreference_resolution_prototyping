@@ -2,7 +2,7 @@ module:
   _target_: models.pl_modules.BasePLModule
   optimizer:
     _target_: torch.optim.RAdam
-    lr: 4e-6
+    lr: 6e-6
     weight_decay: 0
   model:
     _target_: models.model.CorefModel
@@ -10,6 +10,6 @@ module:
     huggingface_model_name: "allenai/longformer-base-4096"
     mode: "s2s"
     transformer_freeze: "unfreezed"
-    pos_weight: 10
+    pos_weight: 1
     linear_layer_hidden_size: 1000
 
