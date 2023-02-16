@@ -37,5 +37,5 @@ model_checkpoint_callback:
   mode: max
   verbose: True
   save_top_k: 1
-  filename: 'checkpoint-val_loss_{val_loss:.4f}-epoch_{epoch:02d}'
+  filename: 'checkpoint-val_f1_{val_f1_score:.4f}-epoch_{epoch:02d}'
   auto_insert_metric_name: False
