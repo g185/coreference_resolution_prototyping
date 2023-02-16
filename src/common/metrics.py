@@ -2,7 +2,7 @@ import numpy as np
 from collections import Counter
 
 #Mention evaluation performed as scores on set of mentions.
-class MentionEvaluator:
+class MentionEvaluator1:
     def __init__(self):
         self.tp, self.fp, self.fn = 0, 0, 0
 
@@ -19,7 +19,7 @@ class MentionEvaluator:
         self.fn += len(gold_mentions - predicted_mentions)
 
     def get_f1(self):
-        pr = self.get_precision()
+        pr = self.get_precision()7
         rec = self.get_recall()
         return 2 * pr * rec / (pr + rec) if pr + rec > 0 else 0.0
 
@@ -34,3 +34,28 @@ class MentionEvaluator:
 
     def end(self):
         self.tp, self.fp, self.fn = 0,0,0
+
+#Mention evaluation performed as scores on set of mentions.
+class MentionEvaluator:
+    def __init__(self):
+        self.tp, self.fp, self.fn = 0, 0, 0
+
+    def get_f1(self, pred, gold):
+        pr = self.get_precision()
+        rec = self.get_recall()
+        return 2 * pr * rec / (pr + rec) if pr + rec > 0 else 0.0
+
+    def get_recall(self):
+        return self.tp / (self.tp + self.fn) if (self.tp + self.fn) > 0 else 0.0
+
+    def get_precision(self):
+        return self.tp / (self.tp + self.fp) if (self.tp + self.fp) > 0 else 0.0
+
+    def get_prf(self, gold, pred, ref):
+        predicted_mentions = set(ref[pred==1])
+        gold_mentions = set(ref[gold==1])
+        self.tp = len(predicted_mentions & gold_mentions)
+        self.fp = len(predicted_mentions - gold_mentions)
+        self.fn = len(gold_mentions - predicted_mentions)
+        return self.get_precision(), self.get_recall(), self.get_f1()
+

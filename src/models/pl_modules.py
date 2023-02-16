@@ -19,19 +19,26 @@ class BasePLModule(pl.LightningModule):
         output_dict = self.model(batch)
         return output_dict
 
-    def metrics(self, golds, preds, split):
+    def metrics(self, golds, preds, split, references = None):
         preds = torch.round(preds)
+            
         f1 = F1Score(task="binary").to(self.device)
         recall = Recall(task="binary").to(self.device)
         precision = Precision(task="binary").to(self.device)
         perc_ones_gold = 100 * (golds.sum() / golds.shape[0]).item()
         perc_ones_pred = 100 * (preds.sum() / preds.shape[0]).item()
-        return {split + "/f1_score": f1(preds, golds),
+        result = {split + "/f1_score": f1(preds, golds),
                 split + "/precision": precision(preds, golds),
                 split + "/recall": recall(preds, golds),
                 split + "/perc_ones_gold": perc_ones_gold,
                 split + "/perc_ones_pred": perc_ones_pred,
                 }
+        4
+        if references != None:
+            result[split + "/f1_ment_eval"], 
+            result[split+"/precision_ment_eval"], 
+            result[split+"/recall_ment_eval"] = self.mention_evaluator.get_prf(golds, preds, references)
+        return result
 
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         forward_output = self.forward(batch)

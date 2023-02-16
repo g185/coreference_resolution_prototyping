@@ -65,7 +65,7 @@ class CorefModel(torch.nn.Module):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
                                         attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
         loss = []
-        preds = []
+        preds = []3
         golds = []
         for lhs, mask, gold in zip(last_hidden_states, batch["mask"], batch["gold_edges"]):
             lhs = lhs[mask == 1] #MS * HS
@@ -96,6 +96,7 @@ class CorefModel(torch.nn.Module):
         loss = []
         preds = []
         golds = []
+        references = []
         for  lhs, ids, mask, gold in zip(last_hidden_states, batch["input_ids"], batch["mask"], batch["gold_edges"]):
 
             eoi = (ids == 2).nonzero(as_tuple=False)
@@ -108,6 +109,7 @@ class CorefModel(torch.nn.Module):
                     lhs) @ self.representation_end(lhs).T
             coref_logits = coref_logits[mask==1]
             gold = gold[mask==1]
+            references.append((mask==1).nonzero(as_tuple=False))
             
             coref_logits = coref_logits.flatten()
             preds.append(torch.sigmoid(coref_logits.detach()))  # S*S
@@ -118,6 +120,7 @@ class CorefModel(torch.nn.Module):
         loss = torch.stack(loss).sum()
         output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
                   "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
+                  "references": torch.cat(references, 0)  if len(references) > 1 else references[0],
                   "loss": loss}
         
         return output
