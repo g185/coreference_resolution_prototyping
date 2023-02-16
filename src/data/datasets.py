@@ -89,6 +89,7 @@ class OntonotesDataset(Dataset):
             mask = np.zeros(len(ids))
             idxs_start_words = (offset_mapping[:,0] == 0) & (offset_mapping[:,1] != 0)
             mask[idxs_start_words] = 1
+            mask = mask.triu().fill_diagonal_(0)
         return mask
 
 
