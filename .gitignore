@@ -5,7 +5,7 @@ data/prepare_ontonotes/dev*
 data/prepare_ontonotes/ontonotes*
 data/prepare_ontonotes/conll-2012*
 experiments/*
-data/cache/*
+data/cache*
 
 # Created by https://www.toptal.com/developers/gitignore/api/jetbrains+all,vscode,python,jupyternotebooks,linux,windows,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=jetbrains+all,vscode,python,jupyternotebooks,linux,windows,macos
