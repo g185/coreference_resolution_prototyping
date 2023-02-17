@@ -19,7 +19,7 @@ class MentionEvaluator1:
         self.fn += len(gold_mentions - predicted_mentions)
 
     def get_f1(self):
-        pr = self.get_precision()7
+        pr = self.get_precision()
         rec = self.get_recall()
         return 2 * pr * rec / (pr + rec) if pr + rec > 0 else 0.0
 

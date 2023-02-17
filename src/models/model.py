@@ -65,7 +65,7 @@ class CorefModel(torch.nn.Module):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
                                         attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
         loss = []
-        preds = []3
+        preds = []
         golds = []
         for lhs, mask, gold in zip(last_hidden_states, batch["mask"], batch["gold_edges"]):
             lhs = lhs[mask == 1] #MS * HS
