@@ -33,7 +33,6 @@ class BasePLModule(pl.LightningModule):
                 split + "/perc_ones_gold": perc_ones_gold,
                 split + "/perc_ones_pred": perc_ones_pred,
                 }
-        
         if references != None:
             result[split + "/f1_ment_eval"], 
             result[split+"/precision_ment_eval"], 

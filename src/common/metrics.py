@@ -2,7 +2,7 @@ import numpy as np
 from collections import Counter
 
 #Mention evaluation performed as scores on set of mentions.
-class MentionEvaluator1:
+class MentionEvaluatorAcc:
     def __init__(self):
         self.tp, self.fp, self.fn = 0, 0, 0
 
