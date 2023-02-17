@@ -34,9 +34,7 @@ class BasePLModule(pl.LightningModule):
                 split + "/perc_ones_pred": perc_ones_pred,
                 }
         if references != None:
-            result[split + "/f1_ment_eval"], 
-            result[split+"/precision_ment_eval"], 
-            result[split+"/recall_ment_eval"] = self.mention_evaluator.get_prf(golds, preds, references)
+            result[split + "/f1_ment_eval"], result[split+"/precision_ment_eval"], result[split+"/recall_ment_eval"] = self.mention_evaluator.get_prf(golds, preds, references)
         return result
 
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
@@ -49,7 +47,7 @@ class BasePLModule(pl.LightningModule):
     def validation_step(self, batch: dict, batch_idx: int):
         result = self.forward(batch)
         self.log("val/loss", result['loss'])
-        return self.metrics(result["gold"], result["pred"], split="val"), result["loss"]
+        return self.metrics(result["gold"], result["pred"], split="val", references=result["references"]), result["loss"]
 
     def validation_epoch_end(self, outputs):
         avg_val_loss = []
