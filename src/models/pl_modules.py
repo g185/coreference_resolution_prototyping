@@ -34,7 +34,7 @@ class BasePLModule(pl.LightningModule):
                 split + "/perc_ones_pred": perc_ones_pred,
                 }
         if references != None:
-            result[split + "/f1_ment_eval"], result[split+"/precision_ment_eval"], result[split+"/recall_ment_eval"] = self.mention_evaluator.get_prf(golds, preds, references)
+            result[split + "/precision_ment_eval"], result[split+"/recall_ment_eval"], result[split+"/f1_ment_eval"] = self.mention_evaluator.get_prf(golds, preds, references)
         return result
 
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
