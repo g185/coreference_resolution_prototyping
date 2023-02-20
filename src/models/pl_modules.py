@@ -47,7 +47,11 @@ class BasePLModule(pl.LightningModule):
     def validation_step(self, batch: dict, batch_idx: int):
         result = self.forward(batch)
         self.log("val/loss", result['loss'])
-        return self.metrics(result["gold"], result["pred"], split="val", references=result["references"]), result["loss"]
+        try:
+            reference = result["references"]
+        except:
+            reference = None
+        return self.metrics(result["gold"], result["pred"], split="val", references=reference), result["loss"]
 
     def validation_epoch_end(self, outputs):
         avg_val_loss = []

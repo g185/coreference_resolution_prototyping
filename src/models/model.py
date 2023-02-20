@@ -100,16 +100,16 @@ class CorefModel(torch.nn.Module):
         for  lhs, ids, mask, gold in zip(last_hidden_states, batch["input_ids"], batch["mask"], batch["gold_edges"]):
 
             eoi = (ids == 2).nonzero(as_tuple=False)
-            lhs = lhs[:eoi]
-            gold = gold[:eoi, :eoi]
+            lhs = lhs[:eoi+1]
+            gold = gold[:eoi+1, :eoi+1]
 
             
-            mask = mask[:eoi, :eoi]
+            mask = mask[:eoi+1, :eoi+1]
             coref_logits = self.representation_start(
                     lhs) @ self.representation_end(lhs).T
             coref_logits = coref_logits[mask==1]
             gold = gold[mask==1]
-            references.append((mask==1).nonzero(as_tuple=False))
+            references.append((mask==1).nonzero(as_tuple=False).detach())
             
             coref_logits = coref_logits.flatten()
             preds.append(torch.sigmoid(coref_logits.detach()))  # S*S
@@ -146,14 +146,12 @@ class CorefModel(torch.nn.Module):
             coref_logits = coref_logits.flatten()
             preds.append(torch.sigmoid(coref_logits.detach()))  # S*S
             golds.append(gold.flatten().detach())  # S*S
-            references.append((mask==1).nonzero(as_tuple=False))
             loss.append(torch.nn.functional.binary_cross_entropy_with_logits(
                 coref_logits, gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
         loss = torch.stack(loss).sum()
 
         output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
                   "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
-                  "references": torch.cat(references, 0) if len(references) > 1 else references[0],
                   "loss": loss}
         return output
 
