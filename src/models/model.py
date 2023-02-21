@@ -89,6 +89,29 @@ class CorefModel(torch.nn.Module):
                     "loss": loss}
 
         return output
+    
+    def forward_as_BCE_classification_s2s3(self, batch):
+        last_hidden_states = self.model(input_ids=batch["input_ids"],
+                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
+        mask = batch["mask"]
+        lhs = last_hidden_states
+        gold = batch["gold_edges"]
+
+        coref_logits = self.representation_start(
+                    lhs) @ self.representation_end(lhs).permute(0,2,1) 
+
+        coref_logits = coref_logits[mask==1]
+        gold = gold[mask == 1]
+        pred = torch.sigmoid(coref_logits.flatten().detach()) 
+        gold = gold.flatten().detach()
+        
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                coref_logits, gold, pos_weight=torch.tensor(self.pos_weight))
+        output = {"pred": pred,
+                    "gold": gold,
+                    "loss": loss}
+        
+        return output
 
     def forward_as_BCE_classification_s2e_sentence_level(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
