@@ -67,13 +67,13 @@ class OntonotesDataset(Dataset):
         elem = self.set[index]
         return {"input_ids": torch.tensor(elem["input_ids"]),
                 "attention_mask": torch.tensor(elem["attention_mask"]),
-                "gold_edges": torch.tensor(self.create_gold_matrix(len(elem["input_ids"]), elem["gold_clusters"])),
+                "gold": torch.tensor(self.create_gold_matrix(len(elem["input_ids"]), elem["gold_clusters"])),
                 "mask": self.mask(elem["input_ids"], torch.tensor(elem["offset_mapping"]), elem["attention_mask"], elem["EOS_indices"])
                 }
 
     def mask(self, ids, offset_mapping, attention_mask, eos_indices):
         if self.mode == "s2e_sentence_level":
-            mask = torch.zeros(ids.shape[0], ids.shape[0])
+            mask = torch.zeros(len(ids), len(ids))
             prec = 0
             for idx in eos_indices:
                 for i in range(prec, idx + 1):
@@ -83,7 +83,7 @@ class OntonotesDataset(Dataset):
             mask = mask.triu()
         if self.mode == "s2e":
             mask = torch.zeros(len(ids))
-            eoi = (torch.tensor(attention_mask)==0).nonzero(as_tuole=False)[0] #FIX am? om?
+            eoi = (torch.tensor(attention_mask)==0).nonzero(as_tuple=False)[0]
             mask[:eoi + 1] = 1
             mask = mask.unsqueeze(0).T @ mask.unsqueeze(0)
         if self.mode == "s2s":
@@ -91,6 +91,7 @@ class OntonotesDataset(Dataset):
             idxs_start_words = (offset_mapping[:,0] == 0) & (offset_mapping[:,1] != 0)
             mask[idxs_start_words] = 1
             mask = mask.unsqueeze(0).T @ mask.unsqueeze(0)
+            mask = mask.fill_diagonal_(0)
         return mask
 
 

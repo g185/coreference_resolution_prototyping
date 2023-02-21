@@ -52,8 +52,8 @@ class MentionEvaluator:
         return self.tp / (self.tp + self.fp) if (self.tp + self.fp) > 0 else 0.0
 
     def get_prf(self, gold, pred, ref):
-        predicted_mentions = set([(a.item(), b.item()) for a,b in ref[pred==1]])
-        gold_mentions = set([(a.item(), b.item()) for a,b in ref[gold==1]])
+        predicted_mentions = set([(a.item(), b.item(), c.item()) for a,b,c in ref[pred==1]])
+        gold_mentions = set([(a.item(), b.item(), c.item()) for a,b,c in ref[gold==1]])
         self.tp = len(predicted_mentions & gold_mentions)
         self.fp = len(predicted_mentions - gold_mentions)
         self.fn = len(gold_mentions - predicted_mentions)

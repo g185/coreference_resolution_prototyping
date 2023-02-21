@@ -3,7 +3,7 @@ hydra:
   run:
     dir: ./experiments/${train.model_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
-model_name: ${model.module.model.language_model}-bs${data.datamodule.batch_sizes.train}-${model.module.model.transformer_freeze}-${model.module.model.mode}-posw${model.module.model.pos_weight}-linear${model.module.model.linear_layer_hidden_size}-max_doc_len${data.datamodule.datasets.train[0].max_doc_len}
+model_name: ${model.module.model.mode}/${model.module.model.language_model}-bs${data.datamodule.batch_sizes.train}-${model.module.model.transformer_freeze}-posw${model.module.model.pos_weight}-linear${model.module.model.linear_layer_hidden_size}-max_doc_len${data.datamodule.datasets.train[0].max_doc_len}
 
 defaults:
   - _self_
