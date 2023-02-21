@@ -17,7 +17,7 @@ datamodule:
         path:
           - 'data/prepare_ontonotes/dev.english.jsonlines'
         max_doc_len: 2048
-        processed_dataset_path: 'data/cache_${data.datamodule.datasets.val[0].max_doc_len}/val'
+        processed_dataset_path: 'data/cache_${data.datamodule.datasets.val[0].max_doc_len}_${model.module.model.huggingface_model_name}/val'
         tokenizer: "${model.module.model.huggingface_model_name}"
         mode: "${model.module.model.mode}"
     test:
@@ -26,7 +26,7 @@ datamodule:
         path:
           - 'data/prepare_ontonotes/test.english.jsonlines'
         max_doc_len: 2048
-        processed_dataset_path: 'data/cache_${data.datamodule.datasets.test[0].max_doc_len}/test'
+        processed_dataset_path: 'data/cache_${data.datamodule.datasets.test[0].max_doc_len}_${model.module.model.huggingface_model_name}/test'
         tokenizer: "${model.module.model.huggingface_model_name}"
         mode: "${model.module.model.mode}"
 
