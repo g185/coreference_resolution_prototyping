@@ -7,7 +7,7 @@ datamodule:
         path:
           - 'data/prepare_ontonotes/train.english.jsonlines'
         max_doc_len: 2048
-        processed_dataset_path: 'data/cache_${data.datamodule.datasets.train[0].max_doc_len}/train'
+      processed_dataset_path: 'data/cache_${data.datamodule.datasets.train[0].max_doc_len}_${model.module.model.huggingface_model_name}/train'
         tokenizer: "${model.module.model.huggingface_model_name}"
         mode: "${model.module.model.mode}"
         mask: True
