@@ -6,7 +6,7 @@ datamodule:
         name: 'train'
         path:
           - 'data/prepare_ontonotes/train.english.jsonlines'
-        max_doc_len: 2048
+        max_doc_len: 4096
         processed_dataset_path: 'data/cache_${data.datamodule.datasets.train[0].max_doc_len}/${model.module.model.huggingface_model_name}/train'
         tokenizer: "${model.module.model.huggingface_model_name}"
         mode: "${model.module.model.mode}"
@@ -16,7 +16,7 @@ datamodule:
         name: 'val'
         path:
           - 'data/prepare_ontonotes/dev.english.jsonlines'
-        max_doc_len: 2048
+        max_doc_len: 4096
         processed_dataset_path: 'data/cache_${data.datamodule.datasets.val[0].max_doc_len}/${model.module.model.huggingface_model_name}/val'
         tokenizer: "${model.module.model.huggingface_model_name}"
         mode: "${model.module.model.mode}"
@@ -25,7 +25,7 @@ datamodule:
         name: 'test'
         path:
           - 'data/prepare_ontonotes/test.english.jsonlines'
-        max_doc_len: 2048
+        max_doc_len: 4096
         processed_dataset_path: 'data/cache_${data.datamodule.datasets.test[0].max_doc_len}/${model.module.model.huggingface_model_name}/test'
         tokenizer: "${model.module.model.huggingface_model_name}"
         mode: "${model.module.model.mode}"
@@ -33,12 +33,12 @@ datamodule:
 
 
   batch_sizes:
-    train: 2
-    val: 2
-    test: 2
+    train: 1
+    val: 1
+    test: 1
 
   num_workers:
-    train: 0
-    val: 0
-    test: 0
+    train: 3
+    val: 3
+    test: 3
 
