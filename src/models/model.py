@@ -74,7 +74,7 @@ class CorefModel(torch.nn.Module):
         
         output = {"pred": pred,
                     "gold": gold,
-                    "references": (mask==1).nonzero(as_tuple=False) if self.mode!="s2s" else None,
+                    "references": ((mask.detach()==1).nonzero(as_tuple=False)).detach() if self.mode!="s2s" else None,
                     "loss": loss}
         return output
 
