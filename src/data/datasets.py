@@ -25,6 +25,7 @@ class OntonotesDataset(Dataset):
         # cache, usefast, prefixspace, speakers, sentence_splitting(to extract spans)
         self.max_doc_len = max_doc_len
         self.mode = mode
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True, add_prefix_space=True)
         try:
             self.set = load_from_disk(hydra.utils.get_original_cwd() + "/" + processed_dataset_path)
         except:
@@ -45,7 +46,7 @@ class OntonotesDataset(Dataset):
             example["clusters"] = []
 
         encoded = {"tokens": example["tokens"]}
-        tokenized = tokenizer(example["tokens"], padding="max_length", truncation=True, add_special_tokens=True, max_length = self.max_doc_len,
+        tokenized = tokenizer(example["tokens"], truncation=True, add_special_tokens=True, max_length = self.max_doc_len,
                               is_split_into_words=True, return_offsets_mapping=True)
 
         encoded["input_ids"] = tokenized["input_ids"]
@@ -55,7 +56,6 @@ class OntonotesDataset(Dataset):
                                  tokenized.word_to_tokens(end).end - 1)
                                          for start, end in cluster if tokenized.word_to_tokens(start) is not None and tokenized.word_to_tokens(end) is not None] for cluster in example["clusters"]]
         encoded["EOS_indices"] = [tokenized.word_to_tokens(eos - 1).start for eos in example["EOS"] if tokenized.word_to_tokens(eos - 1) is not None]       
-
         return encoded
 
     def __len__(self) -> int:
@@ -64,12 +64,7 @@ class OntonotesDataset(Dataset):
     def __getitem__(
             self, index
     ) -> Union[Dict[str, torch.Tensor], Tuple[torch.Tensor, torch.Tensor]]:
-        elem = self.set[index]
-        return {"input_ids": torch.tensor(elem["input_ids"]),
-                "attention_mask": torch.tensor(elem["attention_mask"]),
-                "gold": torch.tensor(self.create_gold_matrix(len(elem["input_ids"]), elem["gold_clusters"])),
-                "mask": self.mask(elem["input_ids"], torch.tensor(elem["offset_mapping"]), elem["attention_mask"], elem["EOS_indices"])
-                }
+        return self.set[index]
 
     def mask(self, ids, offset_mapping, attention_mask, eos_indices):
         if self.mode == "s2e_sentence_level":
@@ -113,8 +108,14 @@ class OntonotesDataset(Dataset):
                     starts_without_idx.pop(idx)
                     for target_bpe_idx in starts_without_idx:
                         matrix[start_bpe_idx][target_bpe_idx] = 1
-
-        
         return matrix
+    
+    def collate_fn(self, batch):
+        batch = self.tokenizer.pad(batch)
         
+        return {"input_ids": torch.tensor(batch["input_ids"]),
+                "attention_mask": torch.tensor(batch["attention_mask"]),
+                "gold_clusters": torch.tensor(batch["gold_clusters"]),
+                "mask": self.mask(batch["input_ids"], torch.tensor(batch["offset_mapping"]), batch["attention_mask"], batch["EOS_indices"])
+                }
 

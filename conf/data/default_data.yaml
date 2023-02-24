@@ -33,9 +33,9 @@ datamodule:
 
 
   batch_sizes:
-    train: 1
-    val: 1
-    test: 1
+    train: 3
+    val: 3
+    test: 3
 
   num_workers:
     train: 3
