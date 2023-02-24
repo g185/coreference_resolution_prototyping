@@ -48,6 +48,7 @@ class BasePLDataModule(pl.LightningDataModule):
             shuffle=True,
             batch_size=self.batch_sizes.train,
             num_workers=self.num_workers.train,
+            collate_fn=self.train_dataset.collate_fn
         )
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
@@ -57,6 +58,7 @@ class BasePLDataModule(pl.LightningDataModule):
                 shuffle=False,
                 batch_size=self.batch_sizes.val,
                 num_workers=self.num_workers.val,
+                collate_fn=dataset.collate_fn
             )
             for dataset in self.val_datasets
         ]
@@ -68,6 +70,7 @@ class BasePLDataModule(pl.LightningDataModule):
                 shuffle=False,
                 batch_size=self.batch_sizes.test,
                 num_workers=self.num_workers.test,
+                collate_fn=dataset.collate_fn
             )
             for dataset in self.test_datasets
         ]
