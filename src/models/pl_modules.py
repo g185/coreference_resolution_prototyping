@@ -14,7 +14,7 @@ class BasePLModule(pl.LightningModule):
         self.save_hyperparameters()
         self.model = hydra.utils.instantiate(self.hparams.model)
         self.mention_evaluator = MentionEvaluator()
-
+        
     def forward(self, batch) -> dict:
         output_dict = self.model(batch)
         return output_dict
@@ -25,8 +25,8 @@ class BasePLModule(pl.LightningModule):
         f1 = F1Score(task="binary").to(self.device)
         recall = Recall(task="binary").to(self.device)
         precision = Precision(task="binary").to(self.device)
-        perc_ones_gold = 100 * (golds.sum() / golds.shape[0]).item()
-        perc_ones_pred = 100 * (preds.sum() / preds.shape[0]).item()
+        perc_ones_gold = 100 * (golds.sum() / golds.shape[0] if golds.shape[0] != 0 else torch.tensor(0)).item()
+        perc_ones_pred = 100 * (preds.sum() / preds.shape[0] if preds.shape[0] != 0 else torch.tensor(0)).item()
         result = {split + "/f1_score": f1(preds, golds),
                 split + "/precision": precision(preds, golds),
                 split + "/recall": recall(preds, golds),
@@ -40,7 +40,8 @@ class BasePLModule(pl.LightningModule):
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         forward_output = self.forward(batch)
         self.log("train/loss", forward_output["loss"], on_step=True)
-        self.log_dict(self.metrics(
+        if forward_output["gold"].shape[0] != 0:
+            self.log_dict(self.metrics(
             forward_output["gold"], forward_output["pred"], split="train"))
         return forward_output["loss"]
 
@@ -51,7 +52,8 @@ class BasePLModule(pl.LightningModule):
             reference = result["references"]
         except:
             reference = None
-        return self.metrics(result["gold"], result["pred"], split="val", references=reference), result["loss"]
+        metrics = self.metrics(result["gold"], result["pred"], split="val", references=reference) if batch["gold_clusters"].shape!=0 else  self.metrics(torch.tensor(1), torch.tensor(1), split="val", references=reference)
+        return metrics , result["loss"]
 
     def validation_epoch_end(self, outputs):
         avg_val_loss = []

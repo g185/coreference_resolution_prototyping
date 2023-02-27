@@ -35,7 +35,8 @@ class OntonotesDataset(Dataset):
             self.set = dt.from_pandas(util.to_dataframe(path[0]))
             self.set = self.prepare_data(self.set)
             self.set = self.set.map(self.encode, batched=False, fn_kwargs={"tokenizer": self.tokenizer})
-            self.set = self.set.remove_columns(column_names=["speakers", "clusters"])
+            self.set = self.set.remove_columns(column_names=["speakers", "clusters", "EOS"])
+            self.set = self.set.filter(lambda example: example["num_clusters"] != 0)
             if not os.path.exists(hydra.utils.get_original_cwd() + "/data/cache"):
                 os.makedirs(hydra.utils.get_original_cwd() + "/data/cache")
             self.set.save_to_disk(hydra.utils.get_original_cwd() + "/" + processed_dataset_path)
@@ -120,12 +121,27 @@ class OntonotesDataset(Dataset):
             result.append(matrix)
         return torch.stack(result)
     
+    def t2c(self, shape, coreferences, eos = None):
+        result = []
+        for batch_idx in range(0, shape[0]):
+            matrix = torch.zeros((shape[1], shape[1]))
+
+            for cluster in coreferences[batch_idx]:
+                for idx, (start_bpe_idx, end_bpe_idx) in enumerate(cluster):
+                    t2c = [list(range(elem[0], elem[1] +1)) for elem in cluster]
+                    t2c = [item for sublist in t2c for item in sublist]
+                    t2c.pop(idx)
+                    for target_bpe_idx in t2c:
+                        matrix[start_bpe_idx][target_bpe_idx] = 1
+            result.append(matrix)
+        return torch.stack(result)
+    
     def collate_fn(self, batch):
         batch = self.tokenizer.pad(batch)
         
         max_num_clusters, max_max_cluster_size = max(batch["num_clusters"]), max(batch["max_cluster_size"])
         if max_num_clusters == 0:
-            padded_clusters = None
+            padded_clusters = []
         else:
             padded_clusters = [pad_clusters(cluster, max_num_clusters, max_max_cluster_size) for cluster in batch["gold_clusters"]]
 
@@ -134,7 +150,7 @@ class OntonotesDataset(Dataset):
                 "attention_mask": torch.tensor(batch["attention_mask"]),
                 "gold_clusters": torch.tensor(padded_clusters),
                 "gold_mentions": self.create_gold_matrix(input_ids.shape, batch["gold_clusters"]),
-                "mask": self.mask(batch["input_ids"], batch["offset_mapping"], batch["attention_mask"], batch["EOS_indices"])
+                #"mask": self.mask(batch["input_ids"], batch["offset_mapping"], batch["attention_mask"], batch["EOS_indices"])
                 }
         return output
 

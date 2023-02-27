@@ -41,6 +41,10 @@ class CorefModel(torch.nn.Module):
             input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
         self.representation_end = FullyConnectedLayer(
             input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
+        self.representation_ment_start = FullyConnectedLayer(
+            input_dim=2*self.config.hidden_size, hidden_size=1536, output_dim = self.config.hidden_size, dropout_prob=0.3)
+        self.repr_ment_end = FullyConnectedLayer(
+            input_dim=2*self.config.hidden_size, hidden_size=1536, output_dim = self.config.hidden_size, dropout_prob=0.3)
         self.mode = kwargs["mode"]
         self.pos_weight = kwargs["pos_weight"]
         if kwargs["transformer_freeze"] == "freezed":
@@ -81,7 +85,6 @@ class CorefModel(torch.nn.Module):
     def forward_as_BCE_classification(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
                                         attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        mask = batch["mask"]
         lhs = last_hidden_states
         mentions_gold = batch["gold_mentions"]
 
@@ -90,32 +93,61 @@ class CorefModel(torch.nn.Module):
         
         mention_logits =  start_coref_reps @ end_coref_reps.permute([0,2,1]) 
 
-        mention_logits = mention_logits * mask
-        mentions_gold = mentions_gold * mask
+        mention_logits = mention_logits 
+        mentions_gold = mentions_gold 
         
         mention_loss = torch.nn.functional.binary_cross_entropy_with_logits(
                 mention_logits, mentions_gold, pos_weight=torch.tensor(self.pos_weight))
         
         mention_start_idxs, mention_end_idxs, span_mask, topk_mention_logits = self._prune_topk_mentions(mention_logits, batch["attention_mask"])
 
-        batch_size, _, dim = lhs.size()
-        max_k = mention_start_idxs.size(-1)
-        size = (batch_size, max_k, dim)
-        topk_start_coref_reps = torch.gather(start_coref_reps, dim=1, index=mention_start_idxs.unsqueeze(-1).expand(size))
-        topk_end_coref_reps = torch.gather(end_coref_reps, dim=1, index=mention_end_idxs.unsqueeze(-1).expand(size))
+        topk_start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs.squeeze())
+        topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze())
 
+        b = torch.cat((topk_start_coref_reps, topk_end_coref_reps), dim=2)
 
-        coref_logits = topk_start_coref_reps @ topk_end_coref_reps.permute([0,2,1]) 
-        coref_logits = coref_logits + topk_mention_logits
+        coref_logits = self.representation_ment_start(b) @ self.repr_ment_end(b).permute([0,2,1]) 
+        
+        coref_logits = torch.stack([matrix.tril().fill_diagonal_(0) for matrix in coref_logits])
         labels = self._get_cluster_labels_after_pruning(mention_start_idxs, mention_end_idxs, batch["gold_clusters"])
 
         coref_loss = torch.nn.functional.binary_cross_entropy_with_logits(
             coref_logits, labels)
-        output = {  "pred": coref_logits.detach(),
-                    "gold": labels.detach(),
+        output = {  "pred": torch.sigmoid(coref_logits.flatten().detach()),
+                    "gold": labels.flatten().detach(),
+                    "loss":  coref_loss + mention_loss
+                    }
+        return output
+    
+    def coref(self, batch):
+        last_hidden_states = self.model(input_ids=batch["input_ids"],
+                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
+        lhs = last_hidden_states
+        
+        mentions_gold = batch["gold_mentions"]
+
+        mention_start_idxs=((mentions_gold==1).nonzero(as_tuple=False)[:,1])
+        mention_end_idxs=((mentions_gold==1).nonzero(as_tuple=False)[:,2])
+
+        start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs)
+        end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs)
+
+        b = torch.cat((start_coref_reps, end_coref_reps), dim=2)
+
+        coref_logits = self.representation_ment_start(b) @ self.repr_ment_end(b).permute([0,2,1])
+        
+        coref_logits = torch.stack([matrix.tril().fill_diagonal_(0) for matrix in coref_logits])
+        labels = self._get_cluster_labels_after_pruning(mention_start_idxs.unsqueeze(0), mention_end_idxs.unsqueeze(0), batch["gold_clusters"])
+
+        coref_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            coref_logits, labels)
+        
+        output = {  "pred": torch.sigmoid(coref_logits.flatten().detach()),
+                    "gold": labels.flatten().detach(),
                     "loss":  coref_loss
                     }
         return output
+
 
     def forward_as_BCE_classification_s2s(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
@@ -366,7 +398,7 @@ class CorefModel(torch.nn.Module):
                 if (start, end) not in gold_mentions:
                     continue
                 for j, (a_start, a_end) in enumerate(list(zip(starts, ends))[:i]):
-                    if (a_start, a_end) in mention_to_gold_clusters[(start, end)]:
+                    if (a_start, a_end) in mention_to_gold_clusters[(start, end)] :
                         new_cluster_labels[b, i, j] = 1
         new_cluster_labels = new_cluster_labels.to(self.model.device)
         return new_cluster_labels
