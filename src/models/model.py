@@ -37,7 +37,7 @@ class CorefModel(torch.nn.Module):
         self.model = AutoModel.from_pretrained(self.hf_model_name)
         self.config = AutoConfig.from_pretrained(self.hf_model_name)
         self.linear = kwargs["linear_layer_hidden_size"]
-        self.carlos = True
+        self.coreference_mode = kwargs["coreference_mode"]
         self.representation_s2e_start = FullyConnectedLayer(
             input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
         self.representation_s2e_end = FullyConnectedLayer(
@@ -105,12 +105,11 @@ class CorefModel(torch.nn.Module):
             topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze())
 
         if "gold_clusters" in batch.keys():
-            if self.carlos:
+            if self.coreference_mode == "t2c":
                 coref_logits = self.representation_t2c_start(lhs) @ self.representation_t2c_end(lhs).permute(0,2,1) 
                 labels = batch["gold_clusters"]
                 coreference_loss = torch.nn.functional.binary_cross_entropy_with_logits(
                     coref_logits, batch["gold_clusters"])
-                
             else:
                 topk_start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs.squeeze())
                 topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze())
