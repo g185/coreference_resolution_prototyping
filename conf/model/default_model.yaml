@@ -8,8 +8,9 @@ module:
     _target_: models.model.CorefModel
     language_model: "longformer-base-4096"
     huggingface_model_name: "allenai/longformer-base-4096"
-    mode: "s2e_sentence_level"
-    transformer_freeze: "freezed"
+    mention_mode: "s2e_sentence_level" #gold, s2e, s2e_sentence_level, s2s
+    coreference_mode: "t2c" #gol, t2c, topk, latent
+    transformer_freeze: "unfreezed"
     pos_weight: 1
     linear_layer_hidden_size: 1000
 

@@ -9,7 +9,8 @@ datamodule:
         max_doc_len: 4096
         processed_dataset_path: 'data/cache_${data.datamodule.datasets.train[0].max_doc_len}/${model.module.model.huggingface_model_name}/train'
         tokenizer: "${model.module.model.huggingface_model_name}"
-        mode: "${model.module.model.mode}"
+        mention_mode: "${model.module.model.mention_mode}"
+        coreference_mode: "${model.module.model.coreference_mode}"
         mask: True
     val:
       - _target_: data.datasets.OntonotesDataset
@@ -19,7 +20,8 @@ datamodule:
         max_doc_len: 4096
         processed_dataset_path: 'data/cache_${data.datamodule.datasets.val[0].max_doc_len}/${model.module.model.huggingface_model_name}/val'
         tokenizer: "${model.module.model.huggingface_model_name}"
-        mode: "${model.module.model.mode}"
+        mention_mode: "${model.module.model.mention_mode}"
+        coreference_mode: "${model.module.model.coreference_mode}"
     test:
       - _target_: data.datasets.OntonotesDataset
         name: 'test'
@@ -28,17 +30,18 @@ datamodule:
         max_doc_len: 4096
         processed_dataset_path: 'data/cache_${data.datamodule.datasets.test[0].max_doc_len}/${model.module.model.huggingface_model_name}/test'
         tokenizer: "${model.module.model.huggingface_model_name}"
-        mode: "${model.module.model.mode}"
+        mention_mode: "${model.module.model.mention_mode}"
+        coreference_mode: "${model.module.model.coreference_mode}"
 
 
 
   batch_sizes:
-    train: 3
-    val: 3
-    test: 3
+    train: 1
+    val: 1
+    test: 1
 
   num_workers:
-    train: 3
-    val: 3
-    test: 3
+    train: 0
+    val: 0
+    test: 0
 

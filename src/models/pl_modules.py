@@ -20,39 +20,51 @@ class BasePLModule(pl.LightningModule):
         return output_dict
 
     def metrics(self, golds, preds, split, references = None):
-        preds = torch.round(preds)
-            
+
+        result = {}
         f1 = F1Score(task="binary").to(self.device)
         recall = Recall(task="binary").to(self.device)
         precision = Precision(task="binary").to(self.device)
-        perc_ones_gold = 100 * (golds.sum() / golds.shape[0] if golds.shape[0] != 0 else torch.tensor(0)).item()
-        perc_ones_pred = 100 * (preds.sum() / preds.shape[0] if preds.shape[0] != 0 else torch.tensor(0)).item()
-        result = {split + "/f1_score": f1(preds, golds),
-                split + "/precision": precision(preds, golds),
-                split + "/recall": recall(preds, golds),
-                split + "/perc_ones_gold": perc_ones_gold,
-                split + "/perc_ones_pred": perc_ones_pred,
-                }
-        if references != None:
-            result[split + "/precision_ment_eval"], result[split+"/recall_ment_eval"], result[split+"/f1_ment_eval"] = self.mention_evaluator.get_prf(golds, preds, references)
+
+        if "mentions" in preds.keys():
+            mentions_pred = torch.round(preds["mentions"])  
+            mentions_gold = golds["mentions"] 
+            perc_ones_gold = 100 * (mentions_gold.sum() / mentions_gold.shape[0] if mentions_gold.shape[0] != 0 else torch.tensor(0)).item()
+            perc_ones_pred = 100 * (mentions_pred.sum() / mentions_pred.shape[0] if mentions_pred.shape[0] != 0 else torch.tensor(0)).item()
+            
+            result.update({split + "/mentions_f1_score": f1(mentions_pred, mentions_gold),
+                split + "/mentions_precision": precision(mentions_pred, mentions_gold),
+                split + "/mentions_recall": recall(mentions_pred, mentions_gold),
+                split + "/mentions_perc_ones_gold": perc_ones_gold,
+                split + "/mentions_perc_ones_pred": perc_ones_pred,
+                })
+        if "coreferences" in preds.keys():
+            coreferences_pred = torch.round(preds["coreferences"])  
+            coreferences_gold = golds["coreferences"] 
+            perc_ones_gold = 100 * (coreferences_gold.sum() / coreferences_gold.shape[0] if coreferences_gold.shape[0] != 0 else torch.tensor(0)).item()
+            perc_ones_pred = 100 * (coreferences_pred.sum() / coreferences_pred.shape[0] if coreferences_pred.shape[0] != 0 else torch.tensor(0)).item()
+            
+            result.update({split + "/coreferences_f1_score": f1(coreferences_pred, coreferences_gold),
+                split + "/coreferences_precision": precision(coreferences_pred, coreferences_gold),
+                split + "/coreferences_recall": recall(coreferences_pred, coreferences_gold),
+                split + "/coreferences_perc_ones_gold": perc_ones_gold,
+                split + "/coreferences_perc_ones_pred": perc_ones_pred,
+                })
+            
         return result
 
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         forward_output = self.forward(batch)
-        self.log("train/loss", forward_output["loss"], on_step=True)
-        if forward_output["gold"].shape[0] != 0:
-            self.log_dict(self.metrics(
-            forward_output["gold"], forward_output["pred"], split="train"))
+        loss_dict = forward_output["loss_dict"]
+        loss_dict = {"train/" + k: v for k,v in loss_dict.items()}
+        self.log_dict(loss_dict, on_step=True)
+        self.log_dict(self.metrics(forward_output["gold_dict"], forward_output["pred_dict"], split="train"))
         return forward_output["loss"]
 
     def validation_step(self, batch: dict, batch_idx: int):
         result = self.forward(batch)
-        self.log("val/loss", result['loss'])
-        try:
-            reference = result["references"]
-        except:
-            reference = None
-        metrics = self.metrics(result["gold"], result["pred"], split="val", references=reference) if batch["gold_clusters"].shape!=0 else  self.metrics(torch.tensor(1), torch.tensor(1), split="val", references=reference)
+        self.log_dict({"val/" + k: v for k,v in result["loss_dict"].items()})
+        metrics = self.metrics(result["gold_dict"], result["pred_dict"], split="val") 
         return metrics , result["loss"]
 
     def validation_epoch_end(self, outputs):
