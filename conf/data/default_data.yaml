@@ -41,7 +41,7 @@ datamodule:
     test: 1
 
   num_workers:
-    train: 0
-    val: 0
-    test: 0
+    train: 4
+    val: 4
+    test: 4
 

@@ -143,8 +143,8 @@ class OntonotesDataset(Dataset):
                 }
         
         if self.mention_mode != "gold":
-            output["gold_mentions"] = torch.tensor(self.create_mention_matrix(input_ids.shape, batch["gold_clusters"]))
-            output["mentions_mask"] = torch.tensor(self.mentions_mask(batch["input_ids"], batch["offset_mapping"], batch["attention_mask"], batch["EOS_indices"]))
+            output["gold_mentions"] = self.create_mention_matrix(input_ids.shape, batch["gold_clusters"])
+            output["mentions_mask"] = self.mentions_mask(batch["input_ids"], batch["offset_mapping"], batch["attention_mask"], batch["EOS_indices"])
                 
         if self.coreference_mode == "t2c":
             output["gold_clusters"] = torch.tensor(self.t2c(input_ids.shape, batch["gold_clusters"]))
