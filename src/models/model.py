@@ -82,7 +82,7 @@ class CorefModel(torch.nn.Module):
             mention_logits = self.representation_s2e_start(lhs) @ self.representation_s2e_end(lhs).permute(0,2,1) 
             
             if "mentions_mask" in batch.keys():
-                mask = batch["mentions_mask"]
+                mask = batch["mentions_mask"].detach()
                 mention_logits = mention_logits[mask==1]
                 gold_mentions = gold_mentions[mask==1]
             
