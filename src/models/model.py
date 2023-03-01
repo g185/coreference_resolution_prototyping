@@ -80,19 +80,17 @@ class CorefModel(torch.nn.Module):
             gold_mentions = batch["gold_mentions"]
 
             mention_logits = self.representation_s2e_start(lhs) @ self.representation_s2e_end(lhs).permute(0,2,1) 
-            
+            \
             if "mentions_mask" in batch.keys():
                 mask = batch["mentions_mask"].detach()
-                mention_logits = mention_logits[mask==1]
-                gold_mentions = gold_mentions[mask==1]
             
             mention_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                    mention_logits, gold_mentions, pos_weight=torch.tensor(self.pos_weight)) 
+                    mention_logits[mask == 1], gold_mentions[mask == 1], pos_weight=torch.tensor(self.pos_weight)) 
             
             loss = loss + mention_loss
             loss_dict["mention_loss"] = mention_loss
-            preds["mentions"] = torch.sigmoid(mention_logits.detach())
-            golds["mentions"] = gold_mentions.detach()
+            preds["mentions"] = torch.sigmoid(mention_logits[mask == 1].detach())
+            golds["mentions"] = gold_mentions[mask == 1].detach()
 
         else:
 
@@ -111,6 +109,9 @@ class CorefModel(torch.nn.Module):
                 coreference_loss = torch.nn.functional.binary_cross_entropy_with_logits(
                     coref_logits, batch["gold_clusters"])
             else:
+
+                mention_start_idxs, mention_end_idxs, span_mask, topk_mention_logits = self._prune_topk_mentions(mention_logits, batch["attention_mask"])
+
                 topk_start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs.squeeze())
                 topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze())
 
