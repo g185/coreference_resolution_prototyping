@@ -25,7 +25,7 @@ pl_trainer:
 # "early_stopping_callback: null" will disable early stopping
 early_stopping_callback:
   _target_: pytorch_lightning.callbacks.EarlyStopping
-  monitor: val/coreferences_f1_score
+  monitor: val/coreference_matrix_f1_score
   mode: max
   patience: 9
 
@@ -33,9 +33,9 @@ early_stopping_callback:
 # "model_checkpoint_callback: null" will disable model checkpointing
 model_checkpoint_callback:
   _target_: pytorch_lightning.callbacks.ModelCheckpoint
-  monitor: val/coreferences_f1_score
+  monitor: val/coreference_matrix_f1_score
   mode: max
   verbose: True
   save_top_k: 1
-  filename: 'checkpoint-val_loss_{val/coreferences_f1_score:.4f}-epoch_{epoch:02d}'
+  filename: 'checkpoint-val_loss_{val/coreference_matrix_f1_score:.4f}-epoch_{epoch:02d}'
   auto_insert_metric_name: False

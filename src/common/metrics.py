@@ -33,32 +33,28 @@ class CoNLL2012CorefEvaluator(object):
     def __init__(self):
         self.evaluators = [Evaluator(m) for m in (muc, b_cubed, ceafe)]
         self.metrics = {"muc":0, "b_cubed":1, "ceafe":2}
-
+        
     # pred & golds : [[((wstart, wend),()), (())...]],  mention_to_pred and mention_to_gold: [{(wstart,wend):((wstart, wend)...)}]
     def update(self, pred, gold, mention_to_predicted, mention_to_gold):
         for e in self.evaluators:
             e.update(pred,gold,mention_to_predicted, mention_to_gold)
 
-    def get_f1(self, metric):
-        if metric == "conll2012":
-            return sum(e.get_f1() for e in self.evaluators) / len(self.evaluators)
-        else:
-            return self.evaluators[self.metrics[metric]].get_f1()
+    def get_f1(self):
+        return sum(e.get_f1() for e in self.evaluators) / len(self.evaluators)
 
-    def get_recall(self, metric):
-        if metric == "conll2012":
-            return sum(e.get_recall() for e in self.evaluators) / len(self.evaluators)
-        else:
-            return self.evaluators[self.metrics[metric]].get_recall()
+    def get_recall(self):
+        return sum(e.get_recall() for e in self.evaluators) / len(self.evaluators)
 
-    def get_precision(self, metric):
-        if metric == "conll2012":
-            return sum(e.get_precision() for e in self.evaluators) / len(self.evaluators)
-        else:
-            return self.evaluators[self.metrics[metric]].get_precision()
+    def get_precision(self):
+        return sum(e.get_precision() for e in self.evaluators) / len(self.evaluators)
 
-    def get_prf(self, metric):
-        return self.get_precision(metric), self.get_recall(metric), self.get_f1(metric)
+    def get_prf(self, pred, gold, mention_to_predicted, mention_to_gold):
+        self.evaluators = [Evaluator(m) for m in (muc, b_cubed, ceafe)]
+        self.metrics = {"muc":0, "b_cubed":1, "ceafe":2}
+        for e in self.evaluators:
+            e.update(pred,gold,mention_to_predicted, mention_to_gold)
+        return self.get_precision(), self.get_recall(), self.get_f1()
+
 
 class Evaluator(object):
     def __init__(self, metric, beta=1):
@@ -106,7 +102,7 @@ def b_cubed(clusters, mention_to_gold):
     num, dem = 0, 0
 
     for c in clusters:
-        if len(c) == 1:
+        if len(c) <= 1:
             continue
 
         gold_counts = Counter()

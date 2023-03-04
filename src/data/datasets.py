@@ -104,12 +104,12 @@ class OntonotesDataset(Dataset):
         for batch_idx in range(0, shape[0]):
             matrix = torch.zeros((shape[1], shape[1]))
 
-            if self.mention_mode == "s2e" or self.mention_mode == "s2e_sentence_level":
+            if self.mention_mode != "s2s":
                 for cluster in coreferences[batch_idx]:
                     for start_bpe_idx, end_bpe_idx in cluster:
                         matrix[start_bpe_idx][end_bpe_idx] = 1
                         
-            elif self.mention_mode == "s2s":
+            else:
                 for cluster in coreferences[batch_idx]:
                     for idx, (start_bpe_idx, end_bpe_idx) in enumerate(cluster):
                         starts_without_idx = [elem[0] for elem in cluster]
@@ -141,11 +141,12 @@ class OntonotesDataset(Dataset):
         output = {"input_ids": input_ids,
                 "attention_mask": torch.tensor(batch["attention_mask"]),
                 }
-        
+        output["gold_mentions"] = self.create_mention_matrix(input_ids.shape, batch["gold_clusters"])
+           
         if self.mention_mode != "gold":
-            output["gold_mentions"] = self.create_mention_matrix(input_ids.shape, batch["gold_clusters"])
             output["mentions_mask"] = self.mentions_mask(batch["input_ids"], batch["offset_mapping"], batch["attention_mask"], batch["EOS_indices"])
-                
+        
+                 
         if self.coreference_mode == "t2c":
             output["gold_clusters"] = torch.tensor(self.t2c(input_ids.shape, batch["gold_clusters"]))
 

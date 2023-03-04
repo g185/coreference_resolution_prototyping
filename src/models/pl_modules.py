@@ -7,6 +7,7 @@ import math
 from torchmetrics import *
 
 from src.common.metrics import *
+from src.models.model import *
 
 class BasePLModule(pl.LightningModule):
     def __init__(self, *args, **kwargs) -> None:
@@ -14,13 +15,15 @@ class BasePLModule(pl.LightningModule):
         self.save_hyperparameters()
         self.model = hydra.utils.instantiate(self.hparams.model)
         self.mention_evaluator = MentionEvaluator()
+        self.coref_evaluator = CoNLL2012CorefEvaluator()
+        self.split = ""
         
     def forward(self, batch) -> dict:
-        output_dict = self.model(batch)
+        output_dict = self.model(batch, self.global_step)
         return output_dict
 
-    def metrics(self, golds, preds, split, references = None):
-
+    def metrics(self, golds, preds, split):
+        
         result = {}
         f1 = F1Score(task="binary").to(self.device)
         recall = Recall(task="binary").to(self.device)
@@ -38,20 +41,45 @@ class BasePLModule(pl.LightningModule):
                 split + "/mentions_perc_ones_gold": perc_ones_gold,
                 split + "/mentions_perc_ones_pred": perc_ones_pred,
                 })
-        if "coreferences" in preds.keys():
-            coreferences_pred = torch.round(preds["coreferences"])  
-            coreferences_gold = golds["coreferences"] 
+        if "coreferences_matrix_form" in preds.keys():
+            coreferences_pred = torch.round(preds["coreferences_matrix_form"])  
+            coreferences_gold = golds["coreferences_matrix_form"] 
             perc_ones_gold = 100 * (coreferences_gold.sum() / coreferences_gold.shape[0] if coreferences_gold.shape[0] != 0 else torch.tensor(0)).item()
             perc_ones_pred = 100 * (coreferences_pred.sum() / coreferences_pred.shape[0] if coreferences_pred.shape[0] != 0 else torch.tensor(0)).item()
             
-            result.update({split + "/coreferences_f1_score": f1(coreferences_pred, coreferences_gold),
-                split + "/coreferences_precision": precision(coreferences_pred, coreferences_gold),
-                split + "/coreferences_recall": recall(coreferences_pred, coreferences_gold),
-                split + "/coreferences_perc_ones_gold": perc_ones_gold,
-                split + "/coreferences_perc_ones_pred": perc_ones_pred,
+            result.update({split + "/coreference_matrix_f1_score": f1(coreferences_pred, coreferences_gold),
+                split + "/coreference_matrix_precision": precision(coreferences_pred, coreferences_gold),
+                split + "/coreference_matrix_recall": recall(coreferences_pred, coreferences_gold),
+                split + "/coreference_matrix_perc_ones_gold": perc_ones_gold,
+                split + "/coreference_matrix_perc_ones_pred": perc_ones_pred,
                 })
+        if "coreferences" in preds.keys():
+            gold = self.unpad(golds["coreferences"])
+            mention_to_gold_clusters = extract_mentions_to_clusters(gold)
+            mention_to_predicted_clusters = extract_mentions_to_clusters(preds["coreferences"])
+
+            precision, recall, f1 = self.coref_evaluator.get_prf(preds["coreferences"], gold, mention_to_predicted_clusters, mention_to_gold_clusters)
+            
+            result[split + "/conll2012_f1_score"] = f1
+            result[split + "/conll2012_precision"] = precision
+            result[split + "/conll2012_recall"] = recall
             
         return result
+
+    def unpad(self, gold):
+        for b in gold:
+            g = []
+            for cluster in b:
+                c = []
+                for span in cluster:
+                    if span[0].item() != -1:
+                        c.append((span[1].item(), span[1].item()))
+                if len(c) != 0:
+                    g.append(tuple(c))
+        return g
+            
+        
+
 
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         forward_output = self.forward(batch)

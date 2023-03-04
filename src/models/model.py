@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from torch.nn import Module, Linear, LayerNorm, Dropout
 from transformers.activations import ACT2FN
 import math
+import numpy as np
+from src.common.latent.models import IndependentLatentModel
 
 
 class FullyConnectedLayer(Module):
@@ -37,35 +39,46 @@ class CorefModel(torch.nn.Module):
         self.model = AutoModel.from_pretrained(self.hf_model_name)
         self.config = AutoConfig.from_pretrained(self.hf_model_name)
         self.linear = kwargs["linear_layer_hidden_size"]
+        self.mention_mode = kwargs["mention_mode"]
         self.coreference_mode = kwargs["coreference_mode"]
-        self.representation_s2e_start = FullyConnectedLayer(
-            input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
-        self.representation_s2e_end = FullyConnectedLayer(
-            input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
-        
-        self.representation_t2c_start = FullyConnectedLayer(
-            input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
-        self.representation_t2c_end = FullyConnectedLayer(
-            input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
-        
-        self.representation_ment_start = FullyConnectedLayer(
-            input_dim=2*self.config.hidden_size, hidden_size=1536, output_dim = self.config.hidden_size, dropout_prob=0.3)
-        self.repr_ment_end = FullyConnectedLayer(
-            input_dim=2*self.config.hidden_size, hidden_size=1536, output_dim = self.config.hidden_size, dropout_prob=0.3)
-        
         self.pos_weight = kwargs["pos_weight"]
+
         if kwargs["transformer_freeze"] == "freezed":
             for param in self.model.parameters():
                 param.requires_grad = False
+
+        if self.coreference_mode == "latent":
+            self.z = IndependentLatentModel()
+        
+        if self.mention_mode != "gold":
+            self.representation_s2e_start = FullyConnectedLayer(
+                input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
+            self.representation_s2e_end = FullyConnectedLayer(
+                input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
+        
+        if self.coreference_mode == "t2c":
+            self.representation_t2c_start = FullyConnectedLayer(
+                input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
+            self.representation_t2c_end = FullyConnectedLayer(
+                input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
+        
+        if self.coreference_mode in ["topk", "latent"]:
+            self.representation_ment_start = FullyConnectedLayer(
+                input_dim=2*self.config.hidden_size, hidden_size=1536, output_dim = self.config.hidden_size, dropout_prob=0.3)
+            self.repr_ment_end = FullyConnectedLayer(
+                input_dim=2*self.config.hidden_size, hidden_size=1536, output_dim = self.config.hidden_size, dropout_prob=0.3)
+        
+        
 
 
     def forward(
             self,
             batch: torch.Tensor,
+            step: int,
     ) -> Dict[str, torch.Tensor]:
-        return self.forward(batch)
+        return self.forward(batch, step)
     
-    def forward(self, batch):
+    def forward(self, batch, step):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
                                         attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
         lhs = last_hidden_states
@@ -76,33 +89,30 @@ class CorefModel(torch.nn.Module):
         loss = torch.tensor([0.0], requires_grad=True).cuda()
         loss_dict={}
 
-        if "gold_mentions" in batch.keys():
+        if self.mention_mode != "gold":
             gold_mentions = batch["gold_mentions"]
 
             mention_logits = self.representation_s2e_start(lhs) @ self.representation_s2e_end(lhs).permute(0,2,1) 
-            \
-            if "mentions_mask" in batch.keys():
-                mask = batch["mentions_mask"].detach()
+            mask = batch["mentions_mask"].detach()
             
             mention_loss = torch.nn.functional.binary_cross_entropy_with_logits(
                     mention_logits[mask == 1], gold_mentions[mask == 1], pos_weight=torch.tensor(self.pos_weight)) 
             
             loss = loss + mention_loss
             loss_dict["mention_loss"] = mention_loss
+
             preds["mentions"] = torch.sigmoid(mention_logits[mask == 1].detach())
             golds["mentions"] = gold_mentions[mask == 1].detach()
-
         else:
-
             mentions_gold = batch["gold_mentions"]
 
             mention_start_idxs = ((mentions_gold==1).nonzero(as_tuple=False)[:,1]).unsqueeze(0)
             mention_end_idxs = ((mentions_gold==1).nonzero(as_tuple=False)[:,2]).unsqueeze(0)
 
-            topk_start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs.squeeze())
-            topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze())
+            topk_start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs.squeeze(0))
+            topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze(0))
 
-        if "gold_clusters" in batch.keys():
+        if self.coreference_mode != "gold":
             if self.coreference_mode == "t2c":
                 coref_logits = self.representation_t2c_start(lhs) @ self.representation_t2c_end(lhs).permute(0,2,1) 
                 labels = batch["gold_clusters"]
@@ -110,10 +120,10 @@ class CorefModel(torch.nn.Module):
                     coref_logits, batch["gold_clusters"])
             else:
 
-                mention_start_idxs, mention_end_idxs, span_mask, topk_mention_logits = self._prune_topk_mentions(mention_logits, batch["attention_mask"])
-
-                topk_start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs.squeeze())
-                topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze())
+                if self.mention_mode != "gold":
+                    mention_start_idxs, mention_end_idxs, span_mask, topk_mention_logits = self._prune_topk_mentions(mention_logits, batch["attention_mask"])
+                    topk_start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs.squeeze())
+                    topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze())
 
                 b = torch.cat((topk_start_coref_reps, topk_end_coref_reps), dim=2)
 
@@ -122,14 +132,20 @@ class CorefModel(torch.nn.Module):
                 coref_logits = torch.stack([matrix.tril().fill_diagonal_(0) for matrix in coref_logits])
                 labels = self._get_cluster_labels_after_pruning(mention_start_idxs, mention_end_idxs, batch["gold_clusters"])
 
+                #span_starts = (torch.round(torch.sigmoid(coref_logits)) == 1).nonzero(as_tuple=False)[:,1]
+                doc, m2a = create_mention_to_antecedent(mention_start_idxs, mention_end_idxs, coref_logits)
+                preds["coreferences"] = create_clusters(m2a)
+                golds["coreferences"] = batch["gold_clusters"]
+
             coreference_loss = torch.nn.functional.binary_cross_entropy_with_logits(
                 coref_logits, labels)
             
+            #coreference_loss = (coreference_loss / (2000 / (step + 1))) if step < 2000 else coreference_loss 
             loss = loss + coreference_loss
             loss_dict["coreference_loss"] = coreference_loss
 
-            preds["coreferences"] = torch.sigmoid(coref_logits.flatten().detach())
-            golds["coreferences"] = labels.flatten().detach()
+            preds["coreferences_matrix_form"] = torch.sigmoid(coref_logits.flatten().detach())
+            golds["coreferences_matrix_form"] = labels.flatten().detach()
 
         loss_dict["full_loss"] = loss 
     
@@ -501,3 +517,51 @@ def extract_mentions_to_clusters(gold_clusters):
         for mention in gc:
             mention_to_gold[mention] = gc
     return mention_to_gold
+
+def create_mention_to_antecedent(span_starts, span_ends, coref_logits):
+    bs, n_spans, _ = coref_logits.shape
+
+    no_ant =  1 - torch.sum(torch.round(torch.sigmoid(coref_logits)), dim=-1).bool().float()
+    coref_logits = torch.cat((coref_logits, no_ant.unsqueeze(-1)), dim=-1)  # [batch_size, max_k, max_k + 1]
+
+    span_starts = span_starts.detach().cpu()
+    span_ends = span_ends.detach().cpu()
+    max_antecedents = coref_logits.argmax(axis=-1).detach().cpu()
+    doc_indices = np.nonzero(max_antecedents < n_spans)[:,0]
+    mention_indices = np.nonzero(max_antecedents < n_spans)[:,1]       # indices where antecedent is not null.
+    antecedent_indices = max_antecedents[max_antecedents < n_spans]
+    span_indices = np.stack([span_starts.detach().cpu(), span_ends.detach().cpu()], axis=-1)
+
+    mentions = span_indices[doc_indices, mention_indices]
+    antecedents = span_indices[doc_indices, antecedent_indices]
+    mention_to_antecedent = np.stack([mentions, antecedents], axis=1)
+    if len(mentions.shape) == 1:
+        mention_to_antecedent = [mention_to_antecedent]
+
+    return doc_indices, mention_to_antecedent
+
+
+def create_clusters(m2a):
+    # Note: mention_to_antecedent is a numpy array
+
+    clusters, mention_to_cluster = [], {}
+    for mention, antecedent in m2a:
+        mention, antecedent = tuple(mention), tuple(antecedent)
+        if antecedent in mention_to_cluster:
+            cluster_idx = mention_to_cluster[antecedent]
+            if mention not in clusters[cluster_idx]:
+                clusters[cluster_idx].append(mention)
+                mention_to_cluster[mention] = cluster_idx
+        elif mention in mention_to_cluster:
+            cluster_idx = mention_to_cluster[mention]
+            if antecedent not in clusters[cluster_idx]:
+                clusters[cluster_idx].append(antecedent)
+                mention_to_cluster[antecedent] = cluster_idx
+        else:
+            cluster_idx = len(clusters)
+            mention_to_cluster[mention] = cluster_idx
+            mention_to_cluster[antecedent] = cluster_idx
+            clusters.append([antecedent, mention])
+
+    clusters = [tuple(cluster) for cluster in clusters]
+    return clusters
