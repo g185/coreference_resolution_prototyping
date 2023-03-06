@@ -41,6 +41,7 @@ class BasePLModule(pl.LightningModule):
                 split + "/mentions_perc_ones_gold": perc_ones_gold,
                 split + "/mentions_perc_ones_pred": perc_ones_pred,
                 })
+            
         if "coreferences_matrix_form" in preds.keys():
             coreferences_pred = torch.round(preds["coreferences_matrix_form"])  
             coreferences_gold = golds["coreferences_matrix_form"] 
@@ -53,13 +54,13 @@ class BasePLModule(pl.LightningModule):
                 split + "/coreference_matrix_perc_ones_gold": perc_ones_gold,
                 split + "/coreference_matrix_perc_ones_pred": perc_ones_pred,
                 })
+                
         if "coreferences" in preds.keys():
-            gold = self.unpad(golds["coreferences"])
+            gold = self.unpad_gold_clusters(golds["coreferences"])
             mention_to_gold_clusters = extract_mentions_to_clusters(gold)
             mention_to_predicted_clusters = extract_mentions_to_clusters(preds["coreferences"])
 
             precision, recall, f1 = self.coref_evaluator.get_prf(preds["coreferences"], gold, mention_to_predicted_clusters, mention_to_gold_clusters)
-            
             result[split + "/conll2012_f1_score"] = f1
             result[split + "/conll2012_precision"] = precision
             result[split + "/conll2012_recall"] = recall

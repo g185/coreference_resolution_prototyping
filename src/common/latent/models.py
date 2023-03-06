@@ -11,7 +11,7 @@ class IndependentLatentModel(nn.Module):
     This version uses a reparameterizable distribution, e.g. HardKuma.
     """
 
-    def __init__(self):
+    def __init__(self, hidden_size, sparsity):
 
         super(IndependentLatentModel, self).__init__()
 
@@ -31,6 +31,7 @@ class IndependentLatentModel(nn.Module):
 
         h = x
         z_dist = self.z_layer(h)
+        
         # we sample once since the state was already repeated num_samples
         if self.training:
             if hasattr(z_dist, "rsample"):
@@ -50,4 +51,12 @@ class IndependentLatentModel(nn.Module):
         self.z = z  # [B, T]
         self.z_dists = [z_dist]
 
-        return z
+
+        return z, 0
+
+    def evaluate_latent_loss(self):
+        a=1
+
+    
+
+

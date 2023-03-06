@@ -9,7 +9,7 @@ module:
     language_model: "longformer-large-4096"
     huggingface_model_name: "allenai/longformer-large-4096"
     mention_mode: "s2e_sentence_level" #gold, s2e, s2e_sentence_level, s2s
-    coreference_mode: "topk" #gol, t2c, topk, latent
+    coreference_mode: "t2c" #gol, t2c, topk, latent
     transformer_freeze: "unfreezed"
     pos_weight: 1
     linear_layer_hidden_size: 1000

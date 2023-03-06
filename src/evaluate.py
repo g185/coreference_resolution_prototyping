@@ -11,12 +11,13 @@ logger = get_console_logger()
 
 @torch.no_grad()
 def evaluate(conf: omegaconf.DictConfig):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
     hydra.utils.log.info("Using {} as device".format(device))
 
     pl_data_module: BasePLDataModule = hydra.utils.instantiate(
         conf.data.datamodule, _recursive_=False
     )
+
     pl_data_module.prepare_data()
     pl_data_module.setup("test")
 
@@ -28,6 +29,10 @@ def evaluate(conf: omegaconf.DictConfig):
     model.to(device)
     model.eval()
 
+    for batch in pl_data_module.test_dataloader:
+        output = model(**batch)
+        print(output["pred_dict"]["coreferences_matrix_form"])
+        
     # do stuff
     return
 

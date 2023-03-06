@@ -15,6 +15,7 @@ class CorefModel(torch.nn.Module):
         self.hf_model_name = kwargs["huggingface_model_name"]
         self.model = AutoModel.from_pretrained(self.hf_model_name)
         self.config = AutoConfig.from_pretrained(self.hf_model_name)
+
         self.linear = kwargs["linear_layer_hidden_size"]
         self.mention_mode = kwargs["mention_mode"]
         self.coreference_mode = kwargs["coreference_mode"]
@@ -24,8 +25,6 @@ class CorefModel(torch.nn.Module):
             for param in self.model.parameters():
                 param.requires_grad = False
 
-        if self.coreference_mode == "latent":
-            self.z = IndependentLatentModel()
         
         if self.mention_mode != "gold":
             self.representation_s2e_start = FullyConnectedLayer(
@@ -39,6 +38,10 @@ class CorefModel(torch.nn.Module):
             self.representation_t2c_end = FullyConnectedLayer(
                 input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
         
+        
+        if self.coreference_mode == "latent":
+            self.z = IndependentLatentModel()
+
         if self.coreference_mode in ["topk", "latent"]:
             self.representation_ment_start = FullyConnectedLayer(
                 input_dim=2*self.config.hidden_size, hidden_size=1536, output_dim = self.config.hidden_size, dropout_prob=0.3)
@@ -53,7 +56,7 @@ class CorefModel(torch.nn.Module):
             batch: torch.Tensor,
             step: int,
     ) -> Dict[str, torch.Tensor]:
-        return self.forward(batch)
+        return self.latent(batch)
     
     def forward(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
@@ -90,6 +93,7 @@ class CorefModel(torch.nn.Module):
             topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze(0))
 
         if self.coreference_mode != "gold":
+
             if self.coreference_mode == "t2c":
                 coref_logits = self.representation_t2c_start(lhs) @ self.representation_t2c_end(lhs).permute(0,2,1) 
                 labels = batch["gold_clusters"]
@@ -194,6 +198,22 @@ class CorefModel(torch.nn.Module):
                     }
         return output
     
+    def latent(self, batch):
+        last_hidden_states = self.model(input_ids=batch["input_ids"],
+                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
+        lhs = last_hidden_states
+        mentions_gold = batch["gold_mentions"]
+
+        start_coref_reps = self.representation_start(lhs)
+        end_coref_reps = self.representation_end(lhs)
+        
+        mention_logits =  start_coref_reps @ end_coref_reps.permute([0,2,1]) 
+        
+        self.z = IndependentLatentModel()
+
+
+        return 0
+
     def coref(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
                                         attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
@@ -512,6 +532,7 @@ def create_mention_to_antecedent(span_starts, span_ends, coref_logits):
     mentions = span_indices[doc_indices, mention_indices]
     antecedents = span_indices[doc_indices, antecedent_indices]
     mention_to_antecedent = np.stack([mentions, antecedents], axis=1)
+    
     if len(mentions.shape) == 1:
         mention_to_antecedent = [mention_to_antecedent]
 
