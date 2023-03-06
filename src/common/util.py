@@ -2,6 +2,7 @@ import pandas as pd
 import spacy
 import tqdm
 import hydra
+from torch.nn import Module, Linear, LayerNorm, Dropout, ReLU
 
 
 def flatten(l):
@@ -41,3 +42,27 @@ def to_dataframe(file_path):
     df = df.dropna()
     df = df.reset_index(drop=True)
     return df
+
+
+
+class FullyConnectedLayer(Module):
+    def __init__(self, input_dim, output_dim, hidden_size, dropout_prob):
+        super(FullyConnectedLayer, self).__init__()
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.dropout_prob = dropout_prob
+
+        self.dense1 = Linear(self.input_dim, hidden_size)
+        self.dense = Linear(hidden_size, self.output_dim)
+        self.layer_norm = LayerNorm(self.output_dim)
+        self.activation_func = ReLU()
+        self.dropout = Dropout(self.dropout_prob)
+
+    def forward(self, inputs):
+        temp = inputs
+        temp = self.dense1(temp)
+        temp = self.dropout(temp)
+        temp = self.activation_func(temp)
+        temp = self.dense(temp)
+        return temp

@@ -1,40 +1,17 @@
-from typing import Dict, List, Optional
-from transformers import AutoModel, AutoConfig, DistilBertModel, DistilBertConfig
+from typing import Dict
+from transformers import AutoModel, AutoConfig
 import torch
-import torch.nn.functional as F
-from torch.nn import Module, Linear, LayerNorm, Dropout
 from transformers.activations import ACT2FN
-import math
 import numpy as np
+
+from src.common.util import FullyConnectedLayer
 from src.common.latent.models import IndependentLatentModel
-
-
-class FullyConnectedLayer(Module):
-    def __init__(self, input_dim, output_dim, hidden_size, dropout_prob):
-        super(FullyConnectedLayer, self).__init__()
-
-        self.input_dim = input_dim
-        self.output_dim = output_dim
-        self.dropout_prob = dropout_prob
-
-        self.dense1 = Linear(self.input_dim, hidden_size)
-        self.dense = Linear(hidden_size, self.output_dim)
-        self.layer_norm = LayerNorm(self.output_dim)
-        self.activation_func = torch.nn.ReLU()
-        self.dropout = Dropout(self.dropout_prob)
-
-    def forward(self, inputs):
-        temp = inputs
-        temp = self.dense1(temp)
-        temp = self.dropout(temp)
-        temp = self.activation_func(temp)
-        temp = self.dense(temp)
-        return temp
 
 
 class CorefModel(torch.nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
+        
         self.hf_model_name = kwargs["huggingface_model_name"]
         self.model = AutoModel.from_pretrained(self.hf_model_name)
         self.config = AutoConfig.from_pretrained(self.hf_model_name)
@@ -76,9 +53,9 @@ class CorefModel(torch.nn.Module):
             batch: torch.Tensor,
             step: int,
     ) -> Dict[str, torch.Tensor]:
-        return self.forward(batch, step)
+        return self.forward(batch)
     
-    def forward(self, batch, step):
+    def forward(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
                                         attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
         lhs = last_hidden_states

@@ -3,7 +3,7 @@ from typing import Any
 import hydra
 import pytorch_lightning as pl
 import torch
-import math
+
 from torchmetrics import *
 
 from src.common.metrics import *
@@ -19,7 +19,7 @@ class BasePLModule(pl.LightningModule):
         self.split = ""
         
     def forward(self, batch) -> dict:
-        output_dict = self.model(batch, self.global_step)
+        output_dict = self.model(batch)
         return output_dict
 
     def metrics(self, golds, preds, split):
@@ -66,20 +66,18 @@ class BasePLModule(pl.LightningModule):
             
         return result
 
-    def unpad(self, gold):
-        for b in gold:
-            g = []
-            for cluster in b:
-                c = []
+    def unpad_gold_clusters(self, gold_clusters):
+        for batch in gold_clusters:
+            new_gold_clusters = []
+            for cluster in batch:
+                new_cluster = []
                 for span in cluster:
                     if span[0].item() != -1:
-                        c.append((span[1].item(), span[1].item()))
-                if len(c) != 0:
-                    g.append(tuple(c))
-        return g
+                        new_cluster.append((span[0].item(), span[1].item()))
+                if len(new_cluster) != 0:
+                    new_gold_clusters.append(tuple(new_cluster))
+        return new_gold_clusters
             
-        
-
 
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         forward_output = self.forward(batch)
@@ -96,10 +94,8 @@ class BasePLModule(pl.LightningModule):
         return metrics , result["loss"]
 
     def validation_epoch_end(self, outputs):
-        avg_val_loss = []
         avg_metrics = []
         for metrics, loss in outputs:
-            avg_val_loss.append(loss)
             avg_metrics.append(metrics)
 
         avg_metrics = {k: sum([dic[k] for dic in avg_metrics])/len([dic[k]
@@ -107,8 +103,19 @@ class BasePLModule(pl.LightningModule):
         self.log_dict(avg_metrics)
 
     def test_step(self, batch: dict, batch_idx: int) -> Any:
-        forward_output = self.forward(batch)
-        self.log("test/loss", forward_output["loss"])
+        result = self.forward(batch)
+        metrics = self.metrics(result["gold_dict"], result["pred_dict"], split="test") 
+        return metrics
+    
+    def test_epoch_end(self, outputs):
+        avg_metrics = []
+        for metrics in outputs:
+            avg_metrics.append(metrics)
+
+        avg_metrics = {k: sum([dic[k] for dic in avg_metrics])/len([dic[k]
+                                                                    for dic in avg_metrics]) for k in avg_metrics[0]}
+        self.log_dict(avg_metrics)
+
 
     def configure_optimizers(self):
         opt = hydra.utils.instantiate(
