@@ -28,10 +28,9 @@ def evaluate(conf: omegaconf.DictConfig):
     )
     model.to(device)
     model.eval()
-
-    for batch in pl_data_module.test_dataloader:
-        output = model(**batch)
-        print(output["pred_dict"]["coreferences_matrix_form"])
+    for batch in pl_data_module.test_dataloader()[0]:
+        output = model(batch)
+        print(str(torch.round(output["pred_dict"]["coreferences_matrix_form"]).shape) + "\n\n\n")
         
     # do stuff
     return

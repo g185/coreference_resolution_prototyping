@@ -4,7 +4,7 @@ import torch
 from transformers.activations import ACT2FN
 import numpy as np
 
-from src.common.util import FullyConnectedLayer
+from src.common.util import FullyConnectedLayer, Linear
 from src.common.latent.models import IndependentLatentModel
 
 
@@ -27,16 +27,18 @@ class CorefModel(torch.nn.Module):
 
         
         if self.mention_mode != "gold":
-            self.representation_s2e_start = FullyConnectedLayer(
-                input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
-            self.representation_s2e_end = FullyConnectedLayer(
-                input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
-        
+            self.representation_s2e_start = Linear(
+                self.config.hidden_size, self.config.hidden_size)
+            self.representation_s2e_end = Linear(
+                self.config.hidden_size, self.config.hidden_size)
+            
         if self.coreference_mode == "t2c":
-            self.representation_t2c_start = FullyConnectedLayer(
-                input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
-            self.representation_t2c_end = FullyConnectedLayer(
-                input_dim=self.config.hidden_size, hidden_size=self.linear, output_dim=self.config.hidden_size, dropout_prob=0.3)
+        
+            self.representation_t2c_start = Linear(
+                self.config.hidden_size, self.config.hidden_size)
+            self.representation_t2c_end = Linear(
+                self.config.hidden_size, self.config.hidden_size)
+            self.representation_t2c_conv = torch.nn.Conv2d(1,1,7,stride=1, padding=3)
         
         
         if self.coreference_mode == "latent":
@@ -66,7 +68,7 @@ class CorefModel(torch.nn.Module):
         preds = {}
         golds = {}
 
-        loss = torch.tensor([0.0], requires_grad=True).cuda()
+        loss = torch.tensor([0.0], requires_grad=True).to(self.model.device)
         loss_dict={}
 
         if self.mention_mode != "gold":
@@ -96,6 +98,7 @@ class CorefModel(torch.nn.Module):
 
             if self.coreference_mode == "t2c":
                 coref_logits = self.representation_t2c_start(lhs) @ self.representation_t2c_end(lhs).permute(0,2,1) 
+                coref_logits = self.representation_t2c_conv(coref_logits)
                 labels = batch["gold_clusters"]
                 coreference_loss = torch.nn.functional.binary_cross_entropy_with_logits(
                     coref_logits, batch["gold_clusters"])
@@ -125,8 +128,8 @@ class CorefModel(torch.nn.Module):
             loss = loss + coreference_loss
             loss_dict["coreference_loss"] = coreference_loss
 
-            preds["coreferences_matrix_form"] = torch.sigmoid(coref_logits.flatten().detach())
-            golds["coreferences_matrix_form"] = labels.flatten().detach()
+            preds["coreferences_matrix_form"] = torch.sigmoid(coref_logits.detach())
+            golds["coreferences_matrix_form"] = labels.detach()
 
         loss_dict["full_loss"] = loss 
     
@@ -137,66 +140,6 @@ class CorefModel(torch.nn.Module):
                     }
         return output
     
-    def forward_as_BCE_classification_partial(self, batch):
-        last_hidden_states = self.model(input_ids=batch["input_ids"],
-                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        mask = batch["mask"]
-        lhs = last_hidden_states
-        gold = batch["gold_mentions"]
-
-        coref_logits = self.representation_start(
-                    lhs) @ self.representation_end(lhs).permute(0,2,1) 
-
-        coref_logits = coref_logits[mask==1]
-        gold = gold[mask == 1]
-        pred = torch.sigmoid(coref_logits.detach()) 
-        gold = gold.detach()
-        
-        loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                coref_logits, gold, pos_weight=torch.tensor(self.pos_weight))
-        
-        output = {"pred": pred,
-                    "gold": gold,
-                    "references": ((mask.detach()==1).nonzero(as_tuple=False)).detach() if self.mode!="s2s" else None,
-                    "loss": loss}
-        return output
-
-    def forward_as_BCE_classification(self, batch):
-        last_hidden_states = self.model(input_ids=batch["input_ids"],
-                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        lhs = last_hidden_states
-        mentions_gold = batch["gold_mentions"]
-
-        start_coref_reps = self.representation_start(lhs)
-        end_coref_reps = self.representation_end(lhs)
-        
-        mention_logits =  start_coref_reps @ end_coref_reps.permute([0,2,1]) 
-
-        mention_logits = mention_logits 
-        mentions_gold = mentions_gold 
-        
-        mention_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                mention_logits, mentions_gold, pos_weight=torch.tensor(self.pos_weight))
-        
-        mention_start_idxs, mention_end_idxs, span_mask, topk_mention_logits = self._prune_topk_mentions(mention_logits, batch["attention_mask"])
-
-        topk_start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs.squeeze())
-        topk_end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs.squeeze())
-
-        b = torch.cat((topk_start_coref_reps, topk_end_coref_reps), dim=2)
-
-        coref_logits = self.representation_ment_start(b) @ self.repr_ment_end(b).permute([0,2,1]) 
-        
-        coref_logits = torch.stack([matrix.tril().fill_diagonal_(0) for matrix in coref_logits])
-        labels = self._get_cluster_labels_after_pruning(mention_start_idxs, mention_end_idxs, batch["gold_clusters"])
-
-        coref_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-            coref_logits, labels)
-        output = {  "pred": torch.sigmoid(coref_logits.flatten().detach()),
-                    "gold": labels.flatten().detach(),
-                    "loss":  coref_loss + mention_loss
-                    }
-        return output
     
     def latent(self, batch):
         last_hidden_states = self.model(input_ids=batch["input_ids"],
@@ -214,212 +157,6 @@ class CorefModel(torch.nn.Module):
 
         return 0
 
-    def coref(self, batch):
-        last_hidden_states = self.model(input_ids=batch["input_ids"],
-                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        lhs = last_hidden_states
-        
-        mentions_gold = batch["gold_mentions"]
-
-        mention_start_idxs=((mentions_gold==1).nonzero(as_tuple=False)[:,1])
-        mention_end_idxs=((mentions_gold==1).nonzero(as_tuple=False)[:,2])
-
-        start_coref_reps = torch.index_select(lhs, 1, mention_start_idxs)
-        end_coref_reps = torch.index_select(lhs, 1, mention_end_idxs)
-
-        b = torch.cat((start_coref_reps, end_coref_reps), dim=2)
-
-        coref_logits = self.representation_ment_start(b) @ self.repr_ment_end(b).permute([0,2,1])
-        
-        coref_logits = torch.stack([matrix.tril().fill_diagonal_(0) for matrix in coref_logits])
-        labels = self._get_cluster_labels_after_pruning(mention_start_idxs.unsqueeze(0), mention_end_idxs.unsqueeze(0), batch["gold_clusters"])
-
-        coref_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-            coref_logits, labels)
-        
-        output = {  "pred": torch.sigmoid(coref_logits.flatten().detach()),
-                    "gold": labels.flatten().detach(),
-                    "loss":  coref_loss
-                    }
-        return output
-
-
-    def forward_as_BCE_classification_s2s(self, batch):
-        last_hidden_states = self.model(input_ids=batch["input_ids"],
-                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        mask = batch["mask"]
-        lhs = last_hidden_states
-        gold = batch["gold_edges"]
-
-        coref_logits = self.representation_start(
-                    lhs) @ self.representation_end(lhs).permute(0,2,1) 
-
-        coref_logits = coref_logits[mask==1]
-        gold = gold[mask == 1]
-        pred = torch.sigmoid(coref_logits.flatten().detach()) 
-        gold = gold.flatten().detach()
-        
-        loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                coref_logits, gold, pos_weight=torch.tensor(self.pos_weight))
-        
-        output = {"pred": pred,
-                    "gold": gold,
-                    "loss": loss}
-        
-        return output
-
-
-    def forward_as_BCE_classification_s2e(self, batch):
-        last_hidden_states = self.model(input_ids=batch["input_ids"],
-                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        mask = batch["mask"]
-        lhs = last_hidden_states
-        gold = batch["gold_edges"]
-
-        coref_logits = self.representation_start(
-                    lhs) @ self.representation_end(lhs).permute(0,2,1) 
-
-        coref_logits = coref_logits[mask==1]
-        gold = gold[mask == 1]
-        pred = torch.sigmoid(coref_logits.flatten().detach()) 
-        gold = gold.flatten().detach()
-        
-        loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                coref_logits, gold, pos_weight=torch.tensor(self.pos_weight))
-
-        output = {"pred": pred,
-                    "gold": gold,
-                    "loss": loss}
-        return output
-
-
-    def forward_as_BCE_classification_s2e_sentence_level(self, batch):
-        last_hidden_states = self.model(input_ids=batch["input_ids"],
-                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        loss = []
-        preds = []
-        golds = []
-        references = []
-        for  lhs, ids, mask, gold in zip(last_hidden_states, batch["input_ids"], batch["mask"], batch["gold_edges"]):
-
-            eoi = (ids == 2).nonzero(as_tuple=False)
-            lhs = lhs[:eoi+1]
-            gold = gold[:eoi+1, :eoi+1]
-
-            
-            mask = mask[:eoi+1, :eoi+1]
-            coref_logits = self.representation_start(
-                    lhs) @ self.representation_end(lhs).T
-            coref_logits = coref_logits[mask==1]
-            gold = gold[mask==1]
-            references.append((mask==1).nonzero(as_tuple=False).detach())
-            
-            coref_logits = coref_logits.flatten()
-            preds.append(torch.sigmoid(coref_logits.detach()))  # S*S
-            golds.append(gold.flatten().detach())  # S*S
-
-            loss.append(torch.nn.functional.binary_cross_entropy_with_logits(
-                    coref_logits, gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
-        loss = torch.stack(loss).sum()
-        output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
-                  "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
-                  "references": torch.cat(references, 0)  if len(references) > 1 else references[0],
-                  "loss": loss}
-        
-        return output
-
-    def forward_as_BCE_classification_s2s_iterative(self, batch):
-        last_hidden_states = self.model(input_ids=batch["input_ids"],
-                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        loss = []
-        preds = []
-        golds = []
-        for lhs, mask, gold in zip(last_hidden_states, batch["mask"], batch["gold_edges"]):
-            lhs = lhs[mask == 1] #MS * HS
-            gold = gold[mask == 1][:, mask == 1] #MSx MS
-
-            coref_logits = self.representation_start(
-                    lhs) @ self.representation_end(lhs).T #MS x MS 
-
-            coref_logits = coref_logits.fill_diagonal_(0)
-            pred = torch.sigmoid(coref_logits.flatten().detach()) #MS * MS
-            gold = gold.flatten().detach()
-
-            preds.append(pred)  # S*S
-            golds.append(gold.flatten().detach())  # S*S
-
-            loss.append(torch.nn.functional.binary_cross_entropy_with_logits(
-                coref_logits.flatten(), gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
-        loss = torch.stack(loss).sum()
-        output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
-                    "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
-                    "loss": loss}
-
-        return output
-    
-    def forward_as_BCE_classification_s2e_iterative(self, batch):
-        last_hidden_states = self.model(input_ids=batch["input_ids"],
-                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        loss = []
-        preds = []
-        golds = []
-        references = []
-        for  lhs, ids, mask,  gold in zip(last_hidden_states, batch["input_ids"],  batch["mask"], batch["gold_edges"]):
-
-            eoi = (ids == 2).nonzero(as_tuple=False)
-            lhs = lhs[:eoi+1]
-            gold = gold[:eoi+1, :eoi+1]
-
-            coref_logits = self.representation_start(
-                lhs) @ self.representation_end(lhs).T
-            
-            coref_logits = coref_logits.flatten()
-            preds.append(torch.sigmoid(coref_logits.detach()))  # S*S
-            golds.append(gold.flatten().detach())  # S*S
-            loss.append(torch.nn.functional.binary_cross_entropy_with_logits(
-                coref_logits, gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
-        loss = torch.stack(loss).sum()
-
-        output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
-                  "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
-                  "loss": loss}
-        return output
-    
-    def forward_as_BCE_classification_s2e_sentence_level_iterative(self, batch):
-        last_hidden_states = self.model(input_ids=batch["input_ids"],
-                                        attention_mask=batch["attention_mask"])["last_hidden_state"]  # B x S x TH
-        loss = []
-        preds = []
-        golds = []
-        references = []
-        for  lhs, ids, mask, gold in zip(last_hidden_states, batch["input_ids"], batch["mask"], batch["gold_edges"]):
-
-            eoi = (ids == 2).nonzero(as_tuple=False)
-            lhs = lhs[:eoi+1]
-            gold = gold[:eoi+1, :eoi+1]
-
-            
-            mask = mask[:eoi+1, :eoi+1]
-            coref_logits = self.representation_start(
-                    lhs) @ self.representation_end(lhs).T
-            coref_logits = coref_logits[mask==1]
-            gold = gold[mask==1]
-            references.append((mask==1).nonzero(as_tuple=False).detach())
-            
-            coref_logits = coref_logits.flatten()
-            preds.append(torch.sigmoid(coref_logits.detach()))  # S*S
-            golds.append(gold.flatten().detach())  # S*S
-
-            loss.append(torch.nn.functional.binary_cross_entropy_with_logits(
-                    coref_logits, gold.flatten(), pos_weight=torch.tensor(self.pos_weight)))
-        loss = torch.stack(loss).sum()
-        output = {"pred": torch.cat(preds, 0) if len(preds) > 1 else preds[0],
-                  "gold": torch.cat(golds, 0) if len(golds) > 1 else golds[0],
-                  "references": torch.cat(references, 0)  if len(references) > 1 else references[0],
-                  "loss": loss}
-        
-        return output
-    
 
     def _get_span_mask(self, batch_size, k, max_k):
         """
