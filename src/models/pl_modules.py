@@ -68,6 +68,7 @@ class BasePLModule(pl.LightningModule):
         return result
 
     def unpad_gold_clusters(self, gold_clusters):
+        new_gold_clusters = []
         for batch in gold_clusters:
             new_gold_clusters = []
             for cluster in batch:

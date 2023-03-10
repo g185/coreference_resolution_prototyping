@@ -1,2 +1,3 @@
 # put args here
-checkpoint: "/root/coreference_resolution_prototyping/experiments/mentions_s2e_sentence_level-coref_t2c-longformer-large-4096-bs1-unfreezed-posw1-linear1000-max_doc_len3000/2023-03-03/08-01-31/wandb/run-20230303_080141-coisbqyq/files/checkpoints/checkpoint-val_loss_0.7522-epoch_17.ckpt"
+checkpoint: "/root/coreference_resolution_prototyping/experiments/mentions_s2e_sentence_level-coref_t2c-longformer-large-4096-bs1-unfreezed-posw1-linear1000-max_doc_len3000/2023-03-09/09-57-00/wandb/latest-run/files/checkpoints/checkpoint-val_f1_0.7724-epoch_23.ckpt"
+device: "cpu" #cpu

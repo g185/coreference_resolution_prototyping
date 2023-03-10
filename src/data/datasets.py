@@ -25,6 +25,7 @@ class OntonotesDataset(Dataset):
     def __init__(self, name: str, path: str, max_doc_len, processed_dataset_path, tokenizer, mention_mode, coreference_mode, **kwargs):
         super().__init__()
         # cache, usefast, prefixspace, speakers, sentence_splitting(to extract spans)
+        self.stage = name
         self.max_doc_len = max_doc_len
         self.mention_mode = mention_mode
         self.coreference_mode = coreference_mode
@@ -37,7 +38,7 @@ class OntonotesDataset(Dataset):
             self.set = self.prepare_data(self.set)
             self.set = self.set.map(self.encode, batched=False, fn_kwargs={"tokenizer": self.tokenizer})
             self.set = self.set.remove_columns(column_names=["speakers", "clusters", "EOS"])
-            self.set = self.set.filter(lambda example: example["num_clusters"] != 0)
+            #self.set = self.set.filter(lambda example: example["num_clusters"] != 0)
             if not os.path.exists(hydra.utils.get_original_cwd() + "/data/cache"):
                 os.makedirs(hydra.utils.get_original_cwd() + "/data/cache")
             self.set.save_to_disk(hydra.utils.get_original_cwd() + "/" + processed_dataset_path)
@@ -157,6 +158,9 @@ class OntonotesDataset(Dataset):
             else:
                 padded_clusters = [pad_clusters(cluster, max_num_clusters, max_max_cluster_size) for cluster in batch["gold_clusters"]]
             output["gold_clusters"] = torch.tensor(padded_clusters)
+        if self.stage == "test":
+            output["tokens"] = batch["tokens"]
+            output["doc_key"] = batch["doc_key"]
         return output
 
 def pad_clusters_inside(clusters, max_cluster_size):

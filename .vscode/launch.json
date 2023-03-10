@@ -5,6 +5,32 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "eval-gpu",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/src/evaluate.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [],
+            "env": {
+                "PYTHONPATH": "${cwd}"
+            }
+        },
+        {
+            "name": "eval-cpu",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/src/evaluate.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                
+            ],
+            "env": {
+                "PYTHONPATH": "${cwd}"
+            }
+        },
+        {
             "name": "debug-cpu",
             "type": "python",
             "request": "launch",
