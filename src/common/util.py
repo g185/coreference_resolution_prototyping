@@ -3,6 +3,7 @@ import spacy
 import tqdm
 import hydra
 from torch.nn import Module, Linear, LayerNorm, Dropout, ReLU
+import torch
 
 
 def flatten(l):
@@ -66,3 +67,36 @@ class FullyConnectedLayer(Module):
         temp = self.activation_func(temp)
         temp = self.dense(temp)
         return temp
+
+
+class RepresentationLayer(torch.nn.Module):
+    def __init__(self, type, input_dim, output_dim, hidden_dim, **kwargs) -> None:
+        super(RepresentationLayer, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.type = type
+        if type == "Linear":
+            self.layer = Linear(input_dim, output_dim)
+        elif type == "FC":
+            self.layer = FullyConnectedLayer(input_dim, output_dim, hidden_dim, dropout_prob=0.2)
+        elif type == "LSTM-left":
+            self.layer = torch.nn.LSTM(input_size=input_dim, hidden_size=output_dim, bidirectional=True)
+        elif type == "LSTM-right":
+            self.layer = torch.nn.LSTM(input_size=input_dim, hidden_size=output_dim, bidirectional=True)
+        elif type == "LSTM-bidirectional":
+            self.layer = torch.nn.LSTM(input_size=input_dim, hidden_size=output_dim/2, bidirectional=True)
+        #cnv1d
+        #cnv2d
+    
+    def forward(self, inputs):
+        if self.type == "Linear":
+            return self.layer(inputs)
+        elif self.type == "FC":
+            return self.layer(inputs)
+        elif self.type == "LSTM-left":
+            return self.layer(inputs)[0][:self.hidden_dim]
+        elif self.type == "LSTM-right":
+            return self.layer(inputs)[0][self.hidden_dim:]
+        elif self.type == "LSTM-bidirectional":
+            return self.layer(inputs)[0]
+        
+        

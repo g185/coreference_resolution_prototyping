@@ -32,8 +32,8 @@ class BasePLModule(pl.LightningModule):
         if "mentions" in preds.keys():
             mentions_pred = torch.round(preds["mentions"])  
             mentions_gold = golds["mentions"] 
-            perc_ones_gold = 100 * (mentions_gold.sum() / mentions_gold.shape[0] if mentions_gold.shape[0] != 0 else torch.tensor(0)).item()
-            perc_ones_pred = 100 * (mentions_pred.sum() / mentions_pred.shape[0] if mentions_pred.shape[0] != 0 else torch.tensor(0)).item()
+            perc_ones_gold = 100 * (mentions_gold.sum() / mentions_gold.shape[1] if mentions_gold.shape[1] != 0 else torch.tensor(0)).item()
+            perc_ones_pred = 100 * (mentions_pred.sum() / mentions_pred.shape[1] if mentions_pred.shape[1] != 0 else torch.tensor(0)).item()
             
             result.update({split + "/mentions_f1_score": f1(mentions_pred, mentions_gold),
                 split + "/mentions_precision": precision(mentions_pred, mentions_gold),
@@ -45,8 +45,8 @@ class BasePLModule(pl.LightningModule):
         if "coreferences_matrix_form" in preds.keys():
             coreferences_pred = torch.round(preds["coreferences_matrix_form"])  
             coreferences_gold = golds["coreferences_matrix_form"] 
-            perc_ones_gold = 100 * (coreferences_gold.sum() / coreferences_gold.shape[0] if coreferences_gold.shape[0] != 0 else torch.tensor(0)).item()
-            perc_ones_pred = 100 * (coreferences_pred.sum() / coreferences_pred.shape[0] if coreferences_pred.shape[0] != 0 else torch.tensor(0)).item()
+            perc_ones_gold = 100 * (coreferences_gold.sum() / coreferences_gold.shape[1] if coreferences_gold.shape[1] != 0 else torch.tensor(0)).item()
+            perc_ones_pred = 100 * (coreferences_pred.sum() / coreferences_pred.shape[1] if coreferences_pred.shape[1] != 0 else torch.tensor(0)).item()
             
             result.update({split + "/coreference_matrix_f1_score": f1(coreferences_pred, coreferences_gold),
                 split + "/coreference_matrix_precision": precision(coreferences_pred, coreferences_gold),
