@@ -73,7 +73,7 @@ class RepresentationLayer(torch.nn.Module):
     def __init__(self, type, input_dim, output_dim, hidden_dim, **kwargs) -> None:
         super(RepresentationLayer, self).__init__()
         self.hidden_dim = hidden_dim
-        self.type = type
+        self.lt = type
         if type == "Linear":
             self.layer = Linear(input_dim, output_dim)
         elif type == "FC":
@@ -88,15 +88,15 @@ class RepresentationLayer(torch.nn.Module):
         #cnv2d
     
     def forward(self, inputs):
-        if self.type == "Linear":
+        if self.lt == "Linear":
             return self.layer(inputs)
-        elif self.type == "FC":
+        elif self.lt == "FC":
             return self.layer(inputs)
-        elif self.type == "LSTM-left":
+        elif self.lt == "LSTM-left":
             return self.layer(inputs)[0][:self.hidden_dim]
-        elif self.type == "LSTM-right":
+        elif self.lt == "LSTM-right":
             return self.layer(inputs)[0][self.hidden_dim:]
-        elif self.type == "LSTM-bidirectional":
+        elif self.lt == "LSTM-bidirectional":
             return self.layer(inputs)[0]
         
         

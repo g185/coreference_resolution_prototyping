@@ -76,11 +76,9 @@ class CorefModel(torch.nn.Module):
 
         if self.mention_mode != "gold":
             mask = batch["mentions_mask"].detach()
-            gold_mentions = batch["gold_mentions"] * mask
+            gold_mentions = batch["gold_mentions"][mask==1]
 
-            mention_logits = (self.representation_s2e_start(lhs) @ self.representation_s2e_end(lhs).permute(0,2,1)) * mask
-
-            
+            mention_logits = (self.representation_s2e_start(lhs) @ self.representation_s2e_end(lhs).permute(0,2,1))[mask==1]
             
             mention_loss = torch.nn.functional.binary_cross_entropy_with_logits(
                     mention_logits, gold_mentions, pos_weight=torch.tensor(self.pos_weight)) 
