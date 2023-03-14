@@ -30,8 +30,8 @@ class BasePLModule(pl.LightningModule):
         precision = Precision(task="binary").to(self.device)
 
         if "mentions" in preds.keys():
-            mentions_pred = torch.round(preds["mentions"])  
-            mentions_gold = golds["mentions"] 
+            mentions_pred = torch.round(preds["mentions"][preds["mask"]==1])  
+            mentions_gold = golds["mentions"][preds["mask"]==1]
             perc_ones_gold = 100 * (mentions_gold.sum() / mentions_gold.shape[0] if mentions_gold.shape[0] != 0 else torch.tensor(0)).item()
             perc_ones_pred = 100 * (mentions_pred.sum() / mentions_pred.shape[0] if mentions_pred.shape[0] != 0 else torch.tensor(0)).item()
             
@@ -43,8 +43,8 @@ class BasePLModule(pl.LightningModule):
                 })
             
         if "coreferences_matrix_form" in preds.keys():
-            coreferences_pred = torch.round(preds["coreferences_matrix_form"])  
-            coreferences_gold = golds["coreferences_matrix_form"] 
+            coreferences_pred = torch.round(preds["coreferences_matrix_form"].flatten())  
+            coreferences_gold = golds["coreferences_matrix_form"] .flatten()
             perc_ones_gold = 100 * (coreferences_gold.sum() / coreferences_gold.shape[0] if coreferences_gold.shape[0] != 0 else torch.tensor(0)).item()
             perc_ones_pred = 100 * (coreferences_pred.sum() / coreferences_pred.shape[0] if coreferences_pred.shape[0] != 0 else torch.tensor(0)).item()
             

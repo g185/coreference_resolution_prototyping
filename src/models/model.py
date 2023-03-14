@@ -19,7 +19,7 @@ class CorefModel(torch.nn.Module):
         self.coreference_mode = kwargs["coreference_mode"]
         self.pos_weight = kwargs["pos_weight"]
 
-        self.representation = "Linear"
+        self.representation = "FC"
         self.aggregation = "concat_start_end"
         hidden_vectors_dim = self.config.hidden_size
 
@@ -76,17 +76,18 @@ class CorefModel(torch.nn.Module):
 
         if self.mention_mode != "gold":
             mask = batch["mentions_mask"].detach()
-            gold_mentions = batch["gold_mentions"][mask==1]
+            gold_mentions = batch["gold_mentions"]
 
-            mention_logits = (self.representation_s2e_start(lhs) @ self.representation_s2e_end(lhs).permute(0,2,1))[mask==1]
+            mention_logits = (self.representation_s2e_start(lhs) @ self.representation_s2e_end(lhs).permute(0,2,1))
             
             mention_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                    mention_logits, gold_mentions, pos_weight=torch.tensor(self.pos_weight)) 
+                    mention_logits[mask==1], gold_mentions[mask==1], pos_weight=torch.tensor(self.pos_weight)) 
             
             loss = loss + mention_loss
             loss_dict["mention_loss"] = mention_loss
 
             preds["mentions"] = torch.sigmoid(mention_logits.detach())
+            preds["mask"] = mask
             golds["mentions"] = gold_mentions.detach()
         else:
             mentions_gold = batch["gold_mentions"]
